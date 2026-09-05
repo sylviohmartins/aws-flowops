@@ -1,6 +1,6 @@
 """JSON-compatible, versioned definitions shared by UI, repositories and workers."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any, Literal
 from uuid import uuid4
@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 def utcnow() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def new_id() -> str:
@@ -41,7 +41,14 @@ class Risk(StrEnum):
 class RetryPolicy(Model):
     max_attempts: int = Field(default=1, ge=1, le=5)
     backoff_seconds: float = Field(default=0.2, ge=0, le=10)
-    retry_codes: list[str] = Field(default_factory=lambda: ["ThrottlingException", "Throttling", "ServiceUnavailable", "ProvisionedThroughputExceededException"])
+    retry_codes: list[str] = Field(
+        default_factory=lambda: [
+            "ThrottlingException",
+            "Throttling",
+            "ServiceUnavailable",
+            "ProvisionedThroughputExceededException",
+        ]
+    )
 
 
 class Node(Model):
@@ -53,7 +60,9 @@ class Node(Model):
     position: tuple[float, float] = (0, 0)
     enabled: bool = True
     retry: RetryPolicy = Field(default_factory=RetryPolicy)
-    failure_policy: Literal["STOP", "CONTINUE", "RETRY", "FAIL_BRANCH", "MANUAL_INTERVENTION"] = "STOP"
+    failure_policy: Literal["STOP", "CONTINUE", "RETRY", "FAIL_BRANCH", "MANUAL_INTERVENTION"] = (
+        "STOP"
+    )
     compensation: dict[str, Any] | None = None
 
 

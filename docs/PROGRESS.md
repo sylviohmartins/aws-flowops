@@ -13,6 +13,11 @@ para verificar as dependências reais. Essa restrição não é evidência de su
 
 ## Plano
 
+Etapa 2: DAG determinístico, rejeição de ciclos/desconexões/edges inválidos, referências
+somente a ancestrais, parâmetros tipados e DSL sem execução de código. Canvas encapsulado,
+estado estável e contrato defensivo. Testes locais adicionais para ataques por expressão,
+tipo booleano versus inteiro, outputs ausentes e payload não confiável do navegador.
+
 1. Base, persistência e interface inicial.
 2. DAG, expressões, mapeamento e canvas.
 3. Engine, worker e checkpoints.

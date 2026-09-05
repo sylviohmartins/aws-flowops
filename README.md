@@ -19,7 +19,9 @@ O standalone usa demonstração local sem credenciais AWS. Consulte `docs/PROGRE
 from flowops.domain.models import AWSContext, Identity
 from flowops.streamlit import FlowOpsPage
 
-FlowOpsPage(user=Identity(id="authenticated-user", roles=["VIEWER"]), aws_context=AWSContext()).render()
+FlowOpsPage(
+    user=Identity(id="authenticated-user", roles=["VIEWER"]), aws_context=AWSContext()
+).render()
 ```
 
 O host mantém o controle da autenticação e do servidor. A importação não inicia Streamlit nem cria sessões boto3.
