@@ -105,14 +105,10 @@ class ApprovalAuditTests(unittest.TestCase):
         self.assertEqual(completed.status, Status.SUCCESS)
 
         events = self.repo.events(execution.id)
-        approval_event = next(
-            event for event in events if event["event"] == "EXECUTION_APPROVED"
-        )
+        approval_event = next(event for event in events if event["event"] == "EXECUTION_APPROVED")
         self.assertEqual(approval_event["body"]["result"], "APPROVED")
         self.assertEqual(approval_event["body"]["approval_reason"], "peer reviewed")
-        completion = next(
-            event for event in events if event["event"] == "EXECUTION_COMPLETED"
-        )
+        completion = next(event for event in events if event["event"] == "EXECUTION_COMPLETED")
         self.assertEqual(completion["body"]["result"], "SUCCESS")
         self.assertEqual(completion["body"]["environment"], "production")
 
