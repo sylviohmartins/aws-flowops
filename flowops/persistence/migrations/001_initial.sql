@@ -1,0 +1,15 @@
+CREATE TABLE IF NOT EXISTS schema_versions (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS teams (id TEXT PRIMARY KEY, name TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, body TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS environments (id TEXT PRIMARY KEY, body TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS aws_accounts (id TEXT PRIMARY KEY, body TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS resource_bindings (id TEXT PRIMARY KEY, body TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS runbooks (id TEXT PRIMARY KEY, name TEXT NOT NULL, owner TEXT NOT NULL, team TEXT NOT NULL, body TEXT NOT NULL, revision INTEGER NOT NULL, archived INTEGER NOT NULL DEFAULT 0, deleted INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS runbook_versions (runbook_id TEXT NOT NULL, version INTEGER NOT NULL, body TEXT NOT NULL, digest TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(runbook_id, version));
+CREATE TABLE IF NOT EXISTS executions (id TEXT PRIMARY KEY, token TEXT NOT NULL UNIQUE, request_digest TEXT NOT NULL, runbook_id TEXT NOT NULL, status TEXT NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 0, cancel_requested INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS node_executions (execution_id TEXT NOT NULL, node_id TEXT NOT NULL, status TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY(execution_id, node_id));
+CREATE TABLE IF NOT EXISTS approvals (execution_id TEXT NOT NULL, node_id TEXT NOT NULL, digest TEXT NOT NULL, requester TEXT NOT NULL, decision TEXT NOT NULL, approver TEXT, reason TEXT, created_at TEXT NOT NULL, decided_at TEXT, PRIMARY KEY(execution_id, node_id, digest));
+CREATE TABLE IF NOT EXISTS audit_events (id TEXT PRIMARY KEY, created_at TEXT NOT NULL, actor TEXT NOT NULL, event TEXT NOT NULL, execution_id TEXT, body TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS resource_locks (scope TEXT PRIMARY KEY, execution_id TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS execution_history_idx ON executions(runbook_id, created_at);
+CREATE INDEX IF NOT EXISTS audit_execution_idx ON audit_events(execution_id, created_at);

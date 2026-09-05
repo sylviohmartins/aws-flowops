@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aws-flowops"
+version = "0.1.0"
+description = "Visual, governed AWS runbooks for standalone and embedded Streamlit"
+requires-python = ">=3.11"
+dependencies = [
+  "pydantic>=2.11,<3",
+  "streamlit>=1.56,<2",
+  "streamlit-flow-component==1.6.1",
+  "boto3>=1.42,<2",
+  "PyYAML>=6.0.2,<7",
+]
+
+[project.optional-dependencies]
+postgres = ["psycopg[binary]>=3.2,<4"]
+dev = ["pytest>=8.3,<10", "pytest-cov>=6,<8", "ruff>=0.12,<1", "mypy>=1.16,<2", "bandit>=1.8,<2", "pip-audit>=2.9,<3", "build>=1.2,<2", "types-PyYAML>=6", "playwright>=1.51,<2"]
+
+[tool.setuptools.packages.find]
+include = ["flowops*"]
+
+[tool.setuptools.package-data]
+flowops = ["py.typed", "persistence/migrations/*.sql"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.11"
+check_untyped_defs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+warn_unused_ignores = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = ["aws: botocore contract tests", "ui: Streamlit AppTest"]
+
+[tool.coverage.run]
+source = ["flowops"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
