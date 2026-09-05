@@ -10,7 +10,9 @@ from flowops.domain.models import Execution, Status
 class LocalWorker:
     def __init__(self, engine: Engine, workers: int = 4):
         self.engine = engine
-        self.pool = ThreadPoolExecutor(max_workers=max(1, min(workers, 8)), thread_name_prefix="flowops")
+        self.pool = ThreadPoolExecutor(
+            max_workers=max(1, min(workers, 8)), thread_name_prefix="flowops"
+        )
         self.futures: dict[str, Future[Execution]] = {}
         self.lock = Lock()
 
@@ -23,7 +25,7 @@ class LocalWorker:
             return future
 
     def dispatch_pending(self) -> None:
-        for execution in self.engine.store.list(2000):
+        for execution in self.engine.store.history(2000):
             if execution.status == Status.PENDING:
                 self.enqueue(execution.id)
 

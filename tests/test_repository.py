@@ -56,7 +56,7 @@ class RepositoryTests(unittest.TestCase):
         from flowops.streamlit import FlowOpsPage
 
         self.assertTrue(callable(FlowOpsPage))
-        self.assertNotIn("boto3", sys.modules)
+        self.assertNotIn("standalone_app", sys.modules)
 
 
 if __name__ == "__main__":

@@ -10,13 +10,31 @@ from flowops.core.logic import logic
 from flowops.core.security import bounded_output, redact
 from flowops.core.worker import LocalWorker
 from flowops.domain.errors import ConflictError, PolicyViolation, ProviderError
-from flowops.domain.models import AWSContext, Edge, Identity, Node, RetryPolicy, Risk, Runbook, Status
+from flowops.domain.models import (
+    AWSContext,
+    Edge,
+    Identity,
+    Node,
+    RetryPolicy,
+    Risk,
+    Runbook,
+    Status,
+)
 from flowops.persistence.repository import Repository
 
 
 class FakeAction:
     def __init__(self, *, read_only: bool = False, idempotent: bool = False):
-        self.metadata = Metadata("test.action", "test", "test", "action", "Explicit test fake", risk=Risk.HIGH, read_only=read_only, idempotent=idempotent)
+        self.metadata = Metadata(
+            "test.action",
+            "test",
+            "test",
+            "action",
+            "Explicit test fake",
+            risk=Risk.HIGH,
+            read_only=read_only,
+            idempotent=idempotent,
+        )
         self.calls = 0
         self.failures = 0
 
@@ -47,13 +65,32 @@ class EngineTests(unittest.TestCase):
         self.other = Identity(id="approver", roles=["APPROVER"])
 
     def book(self, middle: list[Node] | None = None, *, production: bool = False) -> Runbook:
-        nodes = [Node(id="start", action="core.start"), *(middle if middle is not None else [Node(id="call", action="test.action")]), Node(id="end", action="core.end")]
-        book = Runbook(name="Test", nodes=nodes, edges=[Edge(source=a.id, target=b.id) for a, b in zip(nodes, nodes[1:])], environments=["dev", "production"] if production else ["dev"])
+        nodes = [
+            Node(id="start", action="core.start"),
+            *(middle if middle is not None else [Node(id="call", action="test.action")]),
+            Node(id="end", action="core.end"),
+        ]
+        book = Runbook(
+            name="Test",
+            nodes=nodes,
+            edges=[Edge(source=a.id, target=b.id) for a, b in zip(nodes, nodes[1:], strict=False)],
+            environments=["dev", "production"] if production else ["dev"],
+        )
         rev = self.repo.save_draft(book, self.actor.id)
         return self.repo.publish(book.id, self.actor.id, rev)
 
-    def submit(self, book: Runbook, *, token: str = "one", dry_run: bool = False, production: bool = False) -> str:
-        return self.engine.submit(book, self.actor, AWSContext(environment="production" if production else "dev"), {}, token=token, dry_run=dry_run, reason="test recovery").id
+    def submit(
+        self, book: Runbook, *, token: str = "one", dry_run: bool = False, production: bool = False
+    ) -> str:
+        return self.engine.submit(
+            book,
+            self.actor,
+            AWSContext(environment="production" if production else "dev"),
+            {},
+            token=token,
+            dry_run=dry_run,
+            reason="test recovery",
+        ).id
 
     def test_duplicate_submit_and_worker_claim(self) -> None:
         book = self.book()
@@ -65,7 +102,9 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(self.engine.store.get(first).status, Status.SUCCESS)
         self.engine.execute(first)
         self.assertEqual(self.action.calls, 1)
-        self.assertNotIn("never-persist", Path(self.repo.database).read_bytes().decode(errors="ignore"))
+        self.assertNotIn(
+            "never-persist", Path(self.repo.database).read_bytes().decode(errors="ignore")
+        )
         with self.assertRaises(ConflictError):
             self.submit(book, dry_run=True)
 
@@ -80,15 +119,23 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(self.engine.execute(execution_id).status, Status.WAITING_APPROVAL)
         approval = self.engine.store.pending_approvals()[0]
         with self.assertRaises(PolicyViolation):
-            self.engine.approve(execution_id, "call", approval["digest"], self.actor, approved=True, reason="self")
-        self.engine.approve(execution_id, "call", approval["digest"], self.other, approved=True, reason="Reviewed")
+            self.engine.approve(
+                execution_id, "call", approval["digest"], self.actor, approved=True, reason="self"
+            )
+        self.engine.approve(
+            execution_id, "call", approval["digest"], self.other, approved=True, reason="Reviewed"
+        )
         self.assertEqual(self.engine.execute(execution_id).status, Status.SUCCESS)
         self.assertEqual(self.action.calls, 1)
         with self.assertRaises(ConflictError):
-            self.engine.approve(execution_id, "call", approval["digest"], self.other, approved=True, reason="replay")
+            self.engine.approve(
+                execution_id, "call", approval["digest"], self.other, approved=True, reason="replay"
+            )
 
     def test_manual_checkpoint_and_cancellation(self) -> None:
-        book = self.book([Node(id="approval", action="core.approval"), Node(id="call", action="test.action")])
+        book = self.book(
+            [Node(id="approval", action="core.approval"), Node(id="call", action="test.action")]
+        )
         execution_id = self.submit(book)
         self.assertEqual(self.engine.execute(execution_id).status, Status.WAITING_APPROVAL)
         self.engine.cancel(execution_id, self.actor)
@@ -110,7 +157,24 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(safe.calls, 2)
 
     def test_condition_skips_unselected_branch(self) -> None:
-        book = Runbook(name="Branches", environments=["dev"], nodes=[Node(id="start", action="core.start"), Node(id="condition", action="core.condition", config={"left": False, "right": True}), Node(id="call", action="test.action"), Node(id="end", action="core.end")], edges=[Edge(source="start", target="condition"), Edge(source="condition", target="call", branch="true"), Edge(source="condition", target="end", branch="false"), Edge(source="call", target="end")])
+        book = Runbook(
+            name="Branches",
+            environments=["dev"],
+            nodes=[
+                Node(id="start", action="core.start"),
+                Node(
+                    id="condition", action="core.condition", config={"left": False, "right": True}
+                ),
+                Node(id="call", action="test.action"),
+                Node(id="end", action="core.end"),
+            ],
+            edges=[
+                Edge(source="start", target="condition"),
+                Edge(source="condition", target="call", branch="true"),
+                Edge(source="condition", target="end", branch="false"),
+                Edge(source="call", target="end"),
+            ],
+        )
         rev = self.repo.save_draft(book, "author")
         result = self.engine.execute(self.submit(self.repo.publish(book.id, "author", rev)))
         self.assertEqual(result.status, Status.SUCCESS)
@@ -124,8 +188,15 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(future.result(timeout=5).status, Status.SUCCESS)
 
     def test_bounded_logic_and_redaction(self) -> None:
-        result, _ = logic("core.map", {"items": [{"id": 1}], "template": {"Key": "{{ item.id }}"}}, {})
+        result, _ = logic(
+            "core.map", {"items": [{"id": 1}], "template": {"Key": "{{ item.id }}"}}, {}
+        )
         self.assertEqual(result, {"items": [{"Key": 1}]})
-        self.assertEqual(logic("core.batch", {"items": [1, 2, 3], "size": 2}, {})[0], {"batches": [[1, 2], [3]]})
+        self.assertEqual(
+            logic("core.batch", {"items": [1, 2, 3], "size": 2}, {})[0], {"batches": [[1, 2], [3]]}
+        )
         self.assertTrue(bounded_output({"big": "x" * 1000}, 50)["_truncated"])
-        self.assertEqual(redact({"MessageBody": '{"password":"secret"}'}), {"MessageBody": '{"password": "[REDACTED]"}'})
+        self.assertEqual(
+            redact({"MessageBody": '{"password":"secret"}'}),
+            {"MessageBody": '{"password": "[REDACTED]"}'},
+        )

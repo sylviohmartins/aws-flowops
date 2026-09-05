@@ -38,3 +38,15 @@ Testes locais: 16 testes cumulativos passando, incluindo corrida entre workers, 
 mutação em simulação, aprovação por outra pessoa, cancelamento e retries. A CI da etapa 2
 passou em lint/testes/segurança/dependências/build; os dois erros de tipagem encontrados
 foram corrigidos (nomes com tipos distintos e anotação de dicionário).
+
+## Etapa 4 — AWS
+
+Catálogo real de 71 ações em DynamoDB, SQS, SNS, Lambda e S3 (contagem é verificada
+pelo catálogo, não representa paridade de simulação). Modelos botocore descobrem serviços,
+operações, schemas e campos obrigatórios. Generic AWS exige allowlist do host e assume
+risco crítico para operações desconhecidas. Adapter boto3 verifica STS, contexto, URLs, ARNs
+e bucket owner, limita paginação/streams e desativa retries implícitos do SDK.
+
+Backend demo declara operações suportadas e rejeita as demais. Foram executados 21 testes
+locais; 4 testes adicionais de contrato botocore foram encaminhados à CI porque o SDK não
+está instalado no ambiente local. Não houve chamadas a contas AWS reais.

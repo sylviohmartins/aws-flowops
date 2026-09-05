@@ -6,7 +6,9 @@ from typing import Any, Protocol
 
 from flowops.domain.errors import PolicyViolation
 
-SENSITIVE = re.compile(r"(?i)(secret|password|passwd|credential|authorization|access.?key|session.?token|private.?key|client.?token|receipt.?handle|security.?token)")
+SENSITIVE = re.compile(
+    r"(?i)(secret|password|passwd|credential|authorization|access.?key|session.?token|private.?key|client.?token|receipt.?handle|security.?token)"
+)
 AWS_KEY = re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b")
 BEARER = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9_.~+/=-]+")
 REDACTED = "[REDACTED]"
@@ -16,7 +18,10 @@ def redact(value: Any, depth: int = 0) -> Any:
     if depth > 32:
         return {"_truncated": True, "reason": "depth"}
     if isinstance(value, dict):
-        return {str(k): REDACTED if SENSITIVE.search(str(k)) else redact(v, depth + 1) for k, v in value.items()}
+        return {
+            str(k): REDACTED if SENSITIVE.search(str(k)) else redact(v, depth + 1)
+            for k, v in value.items()
+        }
     if isinstance(value, (list, tuple)):
         return [redact(v, depth + 1) for v in value]
     if isinstance(value, str):
@@ -46,7 +51,9 @@ class PayloadStore(Protocol):
     def put(self, key: str, payload: bytes) -> str: ...
 
 
-def bounded_output(value: Any, limit: int = 131072, store: PayloadStore | None = None, key: str = "") -> Any:
+def bounded_output(
+    value: Any, limit: int = 131072, store: PayloadStore | None = None, key: str = ""
+) -> Any:
     sanitized = redact(value)
     encoded = json.dumps(sanitized, ensure_ascii=False, allow_nan=False).encode()
     if len(encoded) <= limit:

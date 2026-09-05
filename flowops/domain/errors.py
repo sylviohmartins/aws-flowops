@@ -29,3 +29,4 @@ class ProviderError(FlowOpsError):
         self.code = code
         self.retryable = retryable
         self.ambiguous = ambiguous
+        self.details: object = None
