@@ -15,6 +15,18 @@ class ExecutionStore:
     def __init__(self, repository: Repository):
         self.repository = repository
 
+    @staticmethod
+    def _context(execution: Execution) -> dict[str, Any]:
+        return {
+            "runbook_id": execution.runbook_id,
+            "runbook_version": execution.runbook_version,
+            "environment": execution.aws_context.environment,
+            "account": execution.aws_context.account_id,
+            "region": execution.aws_context.region,
+            "reason": execution.reason,
+            "dry_run": execution.dry_run,
+        }
+
     def create(self, execution: Execution, token: str) -> Execution:
         request_digest = digest(
             {k: v for k, v in execution.model_dump().items() if k not in {"id", "created_at"}}
@@ -43,15 +55,7 @@ class ExecutionStore:
                 db,
                 execution.actor.id,
                 "EXECUTION_REQUESTED",
-                {
-                    "runbook_id": execution.runbook_id,
-                    "version": execution.runbook_version,
-                    "environment": execution.aws_context.environment,
-                    "account": execution.aws_context.account_id,
-                    "region": execution.aws_context.region,
-                    "reason": execution.reason,
-                    "dry_run": execution.dry_run,
-                },
+                self._context(execution),
                 execution.id,
             )
         return execution
@@ -82,7 +86,10 @@ class ExecutionStore:
             if row is None:
                 return False
             execution = Execution.model_validate_json(row["body"])
-            scope = f"{execution.aws_context.mode}:{execution.aws_context.account_id}:{execution.aws_context.region}"
+            scope = (
+                f"{execution.aws_context.mode}:"
+                f"{execution.aws_context.account_id}:{execution.aws_context.region}"
+            )
             if not execution.dry_run:
                 lock = db.execute(
                     "SELECT execution_id FROM resource_locks WHERE scope=?", (scope,)
@@ -103,7 +110,13 @@ class ExecutionStore:
                 ),
             ).rowcount
             if changed:
-                self.repository.event(db, execution.actor.id, "EXECUTION_STARTED", {}, execution_id)
+                self.repository.event(
+                    db,
+                    execution.actor.id,
+                    "EXECUTION_STARTED",
+                    self._context(execution) | {"result": Status.RUNNING.value},
+                    execution_id,
+                )
             return changed == 1
 
     def save(self, execution: Execution) -> None:
@@ -118,7 +131,8 @@ class ExecutionStore:
                     db,
                     execution.actor.id,
                     "EXECUTION_COMPLETED",
-                    {"status": execution.status.value, "error": execution.error},
+                    self._context(execution)
+                    | {"result": execution.status.value, "error": execution.error},
                     execution.id,
                 )
             elif execution.status == Status.WAITING_APPROVAL:
@@ -134,6 +148,14 @@ class ExecutionStore:
                 "INSERT INTO node_executions VALUES (?,?,?,?) ON CONFLICT(execution_id,node_id) DO UPDATE SET status=excluded.status,body=excluded.body",
                 (execution.id, node_id, status.value, canonical(safe)),
             )
+            event_body = self._context(execution) | {
+                "node_id": node_id,
+                "result": status.value,
+            }
+            if isinstance(safe, dict):
+                for key in ("attempts", "duration_seconds", "error"):
+                    if key in safe:
+                        event_body[key] = safe[key]
             self.repository.event(
                 db,
                 execution.actor.id,
@@ -142,7 +164,7 @@ class ExecutionStore:
                 else "NODE_FAILED"
                 if status == Status.FAILED
                 else "NODE_COMPLETED",
-                {"node_id": node_id, "status": status.value},
+                event_body,
                 execution.id,
             )
 
@@ -162,10 +184,16 @@ class ExecutionStore:
         return bool(row and row[0])
 
     def cancel(self, execution_id: str, actor: str) -> None:
+        execution = self.get(execution_id)
         with self.repository.transaction() as db:
             db.execute("UPDATE executions SET cancel_requested=1 WHERE id=?", (execution_id,))
-            self.repository.event(db, actor, "EXECUTION_CANCEL_REQUESTED", {}, execution_id)
-        execution = self.get(execution_id)
+            self.repository.event(
+                db,
+                actor,
+                "EXECUTION_CANCEL_REQUESTED",
+                self._context(execution),
+                execution_id,
+            )
         if execution.status in {Status.PENDING, Status.WAITING_APPROVAL}:
             execution.status, execution.finished_at = Status.CANCELLED, utcnow()
             self.save(execution)
@@ -173,6 +201,12 @@ class ExecutionStore:
     def approval(
         self, execution: Execution, node_id: str, input_digest: str, detail: dict[str, Any]
     ) -> str:
+        preview = bounded_output(detail)
+        approval_body = self._context(execution) | {
+            "node_id": node_id,
+            "digest": input_digest,
+            "preview": preview,
+        }
         with self.repository.transaction() as db:
             row = db.execute(
                 "SELECT decision FROM approvals WHERE execution_id=? AND node_id=? AND digest=?",
@@ -181,26 +215,36 @@ class ExecutionStore:
             if row:
                 return str(row[0])
             db.execute(
-                "INSERT INTO approvals (execution_id,node_id,digest,requester,decision,created_at) VALUES (?,?,?,?,?,?)",
-                (execution.id, node_id, input_digest, execution.actor.id, "PENDING", utcnow()),
+                """
+                INSERT INTO approvals
+                    (execution_id,node_id,digest,requester,decision,created_at,body)
+                VALUES (?,?,?,?,?,?,?)
+                """,
+                (
+                    execution.id,
+                    node_id,
+                    input_digest,
+                    execution.actor.id,
+                    "PENDING",
+                    utcnow(),
+                    canonical(approval_body),
+                ),
             )
             self.repository.event(
                 db,
                 execution.actor.id,
                 "APPROVAL_REQUESTED",
-                {"node_id": node_id, "digest": input_digest, "preview": bounded_output(detail)},
+                approval_body,
                 execution.id,
             )
         return "PENDING"
 
     def pending_approvals(self) -> list[dict[str, Any]]:
         with self.repository.transaction() as db:
-            return [
-                dict(r)
-                for r in db.execute(
-                    "SELECT * FROM approvals WHERE decision='PENDING' ORDER BY created_at"
-                )
-            ]
+            rows = db.execute(
+                "SELECT * FROM approvals WHERE decision='PENDING' ORDER BY created_at"
+            ).fetchall()
+        return [dict(row) | {"body": json.loads(row["body"])} for row in rows]
 
     def decide(
         self,
@@ -241,6 +285,12 @@ class ExecutionStore:
                 db,
                 actor,
                 "EXECUTION_APPROVED" if approved else "EXECUTION_REJECTED",
-                {"node_id": node_id, "digest": input_digest, "reason": reason},
+                self._context(execution)
+                | {
+                    "node_id": node_id,
+                    "digest": input_digest,
+                    "approval_reason": reason,
+                    "result": "APPROVED" if approved else "REJECTED",
+                },
                 execution_id,
             )
