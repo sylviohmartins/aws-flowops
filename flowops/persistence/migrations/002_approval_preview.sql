@@ -1,0 +1,1 @@
+ALTER TABLE approvals ADD COLUMN body TEXT NOT NULL DEFAULT '{}';

@@ -13,11 +13,6 @@ para verificar as dependências reais. Essa restrição não é evidência de su
 
 ## Plano
 
-Etapa 2: DAG determinístico, rejeição de ciclos/desconexões/edges inválidos, referências
-somente a ancestrais, parâmetros tipados e DSL sem execução de código. Canvas encapsulado,
-estado estável e contrato defensivo. Testes locais adicionais para ataques por expressão,
-tipo booleano versus inteiro, outputs ausentes e payload não confiável do navegador.
-
 1. Base, persistência e interface inicial.
 2. DAG, expressões, mapeamento e canvas.
 3. Engine, worker e checkpoints.
@@ -25,6 +20,12 @@ tipo booleano versus inteiro, outputs ausentes e payload não confiável do nave
 5. Políticas, RBAC, aprovações e auditoria.
 6. Interface completa, integração e templates.
 7. Demonstração E2E, regressão e documentação.
+
+## Etapa 2 — grafo, expressões e canvas
+
+DAG determinístico, rejeição de ciclos/desconexões/edges inválidos, referências somente a
+ancestrais, parâmetros tipados e DSL sem execução arbitrária de código. Canvas permanece
+encapsulado atrás de contrato Python defensivo e serialização versionada.
 
 ## Etapa 3 — execução
 
@@ -35,18 +36,36 @@ e simulação explícita. Retry exige idempotência e erro transitório permitid
 é persistida e vinculada ao digest do snapshot/contexto/inputs.
 
 Testes locais: 16 testes cumulativos passando, incluindo corrida entre workers, nenhuma
-mutação em simulação, aprovação por outra pessoa, cancelamento e retries. A CI da etapa 2
-passou em lint/testes/segurança/dependências/build; os dois erros de tipagem encontrados
-foram corrigidos (nomes com tipos distintos e anotação de dicionário).
+mutação em simulação, aprovação por outra pessoa, cancelamento e retries.
 
 ## Etapa 4 — AWS
 
-Catálogo real de 71 ações em DynamoDB, SQS, SNS, Lambda e S3 (contagem é verificada
-pelo catálogo, não representa paridade de simulação). Modelos botocore descobrem serviços,
-operações, schemas e campos obrigatórios. Generic AWS exige allowlist do host e assume
-risco crítico para operações desconhecidas. Adapter boto3 verifica STS, contexto, URLs, ARNs
-e bucket owner, limita paginação/streams e desativa retries implícitos do SDK.
+Catálogo real de 71 ações em DynamoDB, SQS, SNS, Lambda e S3. Modelos botocore descobrem
+serviços, operações, schemas e campos obrigatórios. Generic AWS exige allowlist do host e
+assume risco crítico para operações desconhecidas. Adapter boto3 verifica STS, contexto,
+URLs, ARNs e bucket owner, limita paginação/streams e desativa retries implícitos do SDK.
 
-Backend demo declara operações suportadas e rejeita as demais. Foram executados 21 testes
-locais; 4 testes adicionais de contrato botocore foram encaminhados à CI porque o SDK não
-está instalado no ambiente local. Não houve chamadas a contas AWS reais.
+Backend demo declara operações suportadas e rejeita as demais; nenhuma chamada a conta AWS
+real é necessária para a suíte. O commit corretivo `33325a5` fechou a etapa com a pipeline
+Quality integralmente verde: format, lint, mypy, 25 testes com coverage, Bandit, pip-audit e
+build.
+
+## Etapa 5 — políticas, RBAC, aprovações e auditoria
+
+RBAC permanece fail-closed, com escopo por equipe, permissão explícita de execução em
+produção e grant separado para ações destrutivas. Produção exige motivo para mutação real;
+ações críticas, mutações em produção e operações acima do limiar passam por aprovação.
+
+O preview de aprovação passa a ser persistido e contém o contexto operacional necessário
+para revisão: runbook/versão, ambiente, conta, região, motivo, ação, risco, impacto estimado e
+parâmetros já submetidos à sanitização central. A decisão continua vinculada ao digest do
+snapshot/contexto/input e respeita two-person rule.
+
+Auditoria passa a registrar de forma consistente WHO/WHAT/WHEN/WHERE/WHY/RESULT através do
+ator/evento/timestamp existentes e do corpo contextual enriquecido para execução, nodes,
+aprovações, cancelamento e conclusão. Payloads continuam limitados/redigidos pelo mecanismo
+central de sanitização.
+
+Validação da etapa 5 deve cobrir RBAC, produção, destructive grant, bulk limit, migration do
+preview, persistência/reabertura de aprovação, two-person rule e contexto/resultados de
+auditoria antes do próximo slice.
