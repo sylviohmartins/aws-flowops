@@ -20,7 +20,12 @@ HAS_BOTO = importlib.util.find_spec("boto3") is not None
 class AWSAdapterTests(unittest.TestCase):
     def test_curated_coverage_and_mutation_classification(self) -> None:
         self.assertGreaterEqual(len(CURATED), 60)
-        for key in ["lambda.invoke", "sqs.receive_message", "sqs.purge_queue", "dynamodb.execute_statement"]:
+        for key in [
+            "lambda.invoke",
+            "sqs.receive_message",
+            "sqs.purge_queue",
+            "dynamodb.execute_statement",
+        ]:
             self.assertFalse(SPECS[key].read_only)
             self.assertFalse(SPECS[key].idempotent)
 
@@ -32,12 +37,20 @@ class AWSAdapterTests(unittest.TestCase):
 
     def test_account_region_and_endpoint_guards(self) -> None:
         context = AWSContext(account_id="123456789012")
-        resource_scope({"QueueUrl": "https://sqs.sa-east-1.amazonaws.com/123456789012/queue"}, context)
-        for value in ["http://169.254.169.254/latest", "https://sqs.sa-east-1.amazonaws.com/999999999999/queue", "https://sqs.sa-east-1.amazonaws.com.evil.test/123456789012/queue"]:
+        resource_scope(
+            {"QueueUrl": "https://sqs.sa-east-1.amazonaws.com/123456789012/queue"}, context
+        )
+        for value in [
+            "http://169.254.169.254/latest",
+            "https://sqs.sa-east-1.amazonaws.com/999999999999/queue",
+            "https://sqs.sa-east-1.amazonaws.com.evil.test/123456789012/queue",
+        ]:
             with self.assertRaises(PolicyViolation):
                 resource_scope({"QueueUrl": value}, context)
         with self.assertRaises(PolicyViolation):
-            resource_scope({"FunctionName": "arn:aws:lambda:us-east-1:123456789012:function:other"}, context)
+            resource_scope(
+                {"FunctionName": "arn:aws:lambda:us-east-1:123456789012:function:other"}, context
+            )
 
     def test_demo_is_explicit_and_persistent(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -45,7 +58,9 @@ class AWSAdapterTests(unittest.TestCase):
             backend = DemoBackend(repo)
             registry = build_registry(backend)
             context = ActionContext("execution", "get", AWSContext(), False)
-            output = registry.get("dynamodb.get_item").execute({"TableName": "payments", "Key": {"paymentId": {"S": "12345"}}}, context)
+            output = registry.get("dynamodb.get_item").execute(
+                {"TableName": "payments", "Key": {"paymentId": {"S": "12345"}}}, context
+            )
             self.assertEqual(output["Item"]["status"]["S"], "PROCESSING")
             self.assertTrue(output["_demo"])
             with self.assertRaises(ProviderError):
@@ -56,7 +71,14 @@ class AWSAdapterTests(unittest.TestCase):
 
     def test_partial_failure_is_not_success(self) -> None:
         class Partial:
-            def invoke(self, service: str, operation: str, parameters: dict[str, Any], context: ActionContext, limits: Limits) -> Any:
+            def invoke(
+                self,
+                service: str,
+                operation: str,
+                parameters: dict[str, Any],
+                context: ActionContext,
+                limits: Limits,
+            ) -> Any:
                 return {"Failed": [{"Id": "one", "Code": "Denied"}]}
 
         action = AWSAction(SPECS["sqs.send_message_batch"], Partial())
@@ -75,8 +97,12 @@ class BotocoreContractTests(unittest.TestCase):
         self.catalog = ModelCatalog()
         self.aws = AWSContext(mode="aws", account_id="123456789012")
         self.context = ActionContext("contract", "call", self.aws, False)
-        self.session = boto3.Session(aws_access_key_id="test", aws_secret_access_key="test", region_name="sa-east-1")
-        self.client = self.session.client("dynamodb", config=Config(retries={"total_max_attempts": 1}))
+        self.session = boto3.Session(
+            aws_access_key_id="test", aws_secret_access_key="test", region_name="sa-east-1"
+        )
+        self.client = self.session.client(
+            "dynamodb", config=Config(retries={"total_max_attempts": 1})
+        )
         self.stub = Stubber(self.client)
         self.stub.activate()
         self.addCleanup(self.stub.deactivate)
@@ -100,10 +126,17 @@ class BotocoreContractTests(unittest.TestCase):
             action.validate({"TableName": 42})
 
     def test_access_denied_does_not_leak_message(self) -> None:
-        self.stub.add_client_error("get_item", service_error_code="AccessDeniedException", service_message="secret sensitive detail", expected_params={"TableName": "payments", "Key": {"paymentId": {"S": "1"}}})
+        self.stub.add_client_error(
+            "get_item",
+            service_error_code="AccessDeniedException",
+            service_message="secret sensitive detail",
+            expected_params={"TableName": "payments", "Key": {"paymentId": {"S": "1"}}},
+        )
         action = AWSAction(SPECS["dynamodb.get_item"], self.backend, self.catalog)
         with self.assertRaises(ProviderError) as caught:
-            action.execute({"TableName": "payments", "Key": {"paymentId": {"S": "1"}}}, self.context)
+            action.execute(
+                {"TableName": "payments", "Key": {"paymentId": {"S": "1"}}}, self.context
+            )
         self.assertEqual(str(caught.exception), "AccessDeniedException")
 
     def test_generic_default_deny_and_conservative_risk(self) -> None:

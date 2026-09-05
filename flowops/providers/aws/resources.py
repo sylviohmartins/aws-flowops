@@ -18,4 +18,6 @@ EXPLORERS = {
 def explore(registry: ActionRegistry, user: Identity, context: AWSContext, service: str) -> Any:
     require(user, "aws.read")
     action_id, _ = EXPLORERS[service]
-    return registry.get(action_id).execute({}, ActionContext(new_id(), "resource_explorer", context, True))
+    return registry.get(action_id).execute(
+        {}, ActionContext(new_id(), "resource_explorer", context, True)
+    )

@@ -34,11 +34,40 @@ WRITES = {
     "lambda": "invoke update_function_configuration update_function_code publish_version create_alias update_alias delete_alias publish_layer_version delete_layer_version",
     "s3": "put_object delete_object delete_objects copy_object",
 }
-CRITICAL = {"sqs.purge_queue", "sqs.start_message_move_task", "dynamodb.batch_write_item", "lambda.update_function_code", "lambda.delete_layer_version", "s3.delete_objects"}
-CURATED = [Spec(service, operation, True, Risk.READ_ONLY, True) for service, operations in READS.items() for operation in operations.split()] + [Spec(service, operation, False, Risk.CRITICAL if f"{service}.{operation}" in CRITICAL else Risk.HIGH) for service, operations in WRITES.items() for operation in operations.split()]
+CRITICAL = {
+    "sqs.purge_queue",
+    "sqs.start_message_move_task",
+    "dynamodb.batch_write_item",
+    "lambda.update_function_code",
+    "lambda.delete_layer_version",
+    "s3.delete_objects",
+}
+CURATED = [
+    Spec(service, operation, True, Risk.READ_ONLY, True)
+    for service, operations in READS.items()
+    for operation in operations.split()
+] + [
+    Spec(
+        service,
+        operation,
+        False,
+        Risk.CRITICAL if f"{service}.{operation}" in CRITICAL else Risk.HIGH,
+    )
+    for service, operations in WRITES.items()
+    for operation in operations.split()
+]
 SPECS = {spec.id: spec for spec in CURATED}
 # These categories can expose credentials or alter the authority of the worker itself.
-BLOCKED_SERVICES = {"iam", "sts", "organizations", "account", "secretsmanager", "sso", "sso-admin", "sso-oidc"}
+BLOCKED_SERVICES = {
+    "iam",
+    "sts",
+    "organizations",
+    "account",
+    "secretsmanager",
+    "sso",
+    "sso-admin",
+    "sso-oidc",
+}
 
 IAM_OVERRIDES = {
     "lambda.invoke": ("lambda:InvokeFunction",),
@@ -51,10 +80,31 @@ IAM_OVERRIDES = {
     "sqs.send_message_batch": ("sqs:SendMessage",),
     "sqs.delete_message_batch": ("sqs:DeleteMessage",),
     "sqs.change_message_visibility_batch": ("sqs:ChangeMessageVisibility",),
-    "sqs.start_message_move_task": ("sqs:StartMessageMoveTask", "sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:SendMessage"),
-    "dynamodb.execute_statement": ("dynamodb:PartiQLSelect", "dynamodb:PartiQLInsert", "dynamodb:PartiQLUpdate", "dynamodb:PartiQLDelete"),
-    "dynamodb.batch_execute_statement": ("dynamodb:PartiQLSelect", "dynamodb:PartiQLInsert", "dynamodb:PartiQLUpdate", "dynamodb:PartiQLDelete"),
-    "dynamodb.execute_transaction": ("dynamodb:PartiQLSelect", "dynamodb:PartiQLInsert", "dynamodb:PartiQLUpdate", "dynamodb:PartiQLDelete"),
+    "sqs.start_message_move_task": (
+        "sqs:StartMessageMoveTask",
+        "sqs:ReceiveMessage",
+        "sqs:DeleteMessage",
+        "sqs:GetQueueAttributes",
+        "sqs:SendMessage",
+    ),
+    "dynamodb.execute_statement": (
+        "dynamodb:PartiQLSelect",
+        "dynamodb:PartiQLInsert",
+        "dynamodb:PartiQLUpdate",
+        "dynamodb:PartiQLDelete",
+    ),
+    "dynamodb.batch_execute_statement": (
+        "dynamodb:PartiQLSelect",
+        "dynamodb:PartiQLInsert",
+        "dynamodb:PartiQLUpdate",
+        "dynamodb:PartiQLDelete",
+    ),
+    "dynamodb.execute_transaction": (
+        "dynamodb:PartiQLSelect",
+        "dynamodb:PartiQLInsert",
+        "dynamodb:PartiQLUpdate",
+        "dynamodb:PartiQLDelete",
+    ),
 }
 
 
@@ -84,14 +134,31 @@ class ModelCatalog:
     def schema(self, shape: Any, depth: int = 0) -> dict[str, Any]:
         if shape is None:
             return {"type": "object", "properties": {}}
-        names = {"structure": "object", "map": "object", "list": "array", "long": "integer", "double": "number", "float": "number", "timestamp": "string", "blob": "string"}
-        schema: dict[str, Any] = {"type": names.get(shape.type_name, shape.type_name), "description": shape.documentation or ""}
+        names = {
+            "structure": "object",
+            "map": "object",
+            "list": "array",
+            "long": "integer",
+            "double": "number",
+            "float": "number",
+            "timestamp": "string",
+            "blob": "string",
+        }
+        schema: dict[str, Any] = {
+            "type": names.get(shape.type_name, shape.type_name),
+            "description": shape.documentation or "",
+        }
         if shape.type_name == "blob":
             schema["contentEncoding"] = "base64"
         if depth >= 5:
             return schema
         if shape.type_name == "structure":
-            schema.update(properties={name: self.schema(member, depth + 1) for name, member in shape.members.items()}, required=list(shape.required_members))
+            schema.update(
+                properties={
+                    name: self.schema(member, depth + 1) for name, member in shape.members.items()
+                },
+                required=list(shape.required_members),
+            )
         elif shape.type_name == "list":
             schema["items"] = self.schema(shape.member, depth + 1)
         elif shape.type_name == "map":
@@ -112,7 +179,9 @@ class ModelCatalog:
                 raise WorkflowValidationError("This AWS operation takes no parameters.")
         except ParamValidationError as exc:
             # Botocore reports may echo values, so expose only paths/types in schema UI.
-            raise WorkflowValidationError("Parameters do not match the AWS operation schema.") from exc
+            raise WorkflowValidationError(
+                "Parameters do not match the AWS operation schema."
+            ) from exc
 
     def generic_spec(self, service: str, operation: str, allowlist: set[str]) -> Spec:
         key = f"{service}.{operation}"
