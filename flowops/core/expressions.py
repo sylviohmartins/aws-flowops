@@ -27,7 +27,9 @@ def path_parts(path: str) -> list[str | int]:
 def lookup(path: str, scope: dict[str, Any]) -> Any:
     parts = path_parts(path)
     if parts[0] not in ROOTS:
-        raise WorkflowValidationError("Expression root must be params, nodes, item, input or context.")
+        raise WorkflowValidationError(
+            "Expression root must be params, nodes, item, input or context."
+        )
     value: Any = scope
     for part in parts:
         if isinstance(value, dict) and isinstance(part, str) and part in value:

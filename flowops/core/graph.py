@@ -10,12 +10,21 @@ from flowops.domain.errors import WorkflowValidationError
 from flowops.domain.models import Runbook
 
 LOGIC_REQUIRED = {
-    "core.start": [], "core.end": [], "core.condition": ["left"],
-    "core.switch": ["value", "cases"], "core.filter": ["items", "path", "value"],
-    "core.map": ["items", "template"], "core.for_each": ["items", "template"],
-    "core.batch": ["items", "size"], "core.parallel": [], "core.merge": [],
-    "core.wait": ["seconds"], "core.retry": ["action", "config"], "core.stop": [],
-    "core.validation": ["left"], "core.approval": [],
+    "core.start": [],
+    "core.end": [],
+    "core.condition": ["left"],
+    "core.switch": ["value", "cases"],
+    "core.filter": ["items", "path", "value"],
+    "core.map": ["items", "template"],
+    "core.for_each": ["items", "template"],
+    "core.batch": ["items", "size"],
+    "core.parallel": [],
+    "core.merge": [],
+    "core.wait": ["seconds"],
+    "core.retry": ["action", "config"],
+    "core.stop": [],
+    "core.validation": ["left"],
+    "core.approval": [],
 }
 
 
@@ -35,10 +44,10 @@ def validate_graph(book: Runbook, registry: ActionRegistry | None = None) -> lis
     for edge in book.edges:
         if edge.source not in nodes or edge.target not in nodes:
             raise WorkflowValidationError("An edge refers to an unknown node.")
-        key = (edge.source, edge.target, edge.branch)
-        if key in seen:
+        edge_key = (edge.source, edge.target, edge.branch)
+        if edge_key in seen:
             raise WorkflowValidationError("Duplicate edge.")
-        seen.add(key)
+        seen.add(edge_key)
         incoming[edge.target].add(edge.source)
         outgoing[edge.source].add(edge.target)
         source = nodes[edge.source]
@@ -78,13 +87,17 @@ def validate_graph(book: Runbook, registry: ActionRegistry | None = None) -> lis
             parts = path_parts(ref)
             if parts[0] == "nodes":
                 if len(parts) < 3 or parts[1] not in ancestors[node_id] or parts[2] != "output":
-                    raise WorkflowValidationError(f"{node_id}: output reference must target an ancestor.")
+                    raise WorkflowValidationError(
+                        f"{node_id}: output reference must target an ancestor."
+                    )
             elif parts[0] == "params":
                 if len(parts) < 2 or parts[1] not in book.parameters:
                     raise WorkflowValidationError(f"{node_id}: parameter does not exist.")
             elif parts[0] == "item":
                 if node.action not in {"core.map", "core.for_each"}:
-                    raise WorkflowValidationError("item references are limited to explicit iterations.")
+                    raise WorkflowValidationError(
+                        "item references are limited to explicit iterations."
+                    )
             elif parts[0] not in {"input", "context"}:
                 raise WorkflowValidationError("Unknown expression root.")
     return order
@@ -93,8 +106,15 @@ def validate_graph(book: Runbook, registry: ActionRegistry | None = None) -> lis
 def bind_parameters(book: Runbook, supplied: dict[str, Any]) -> dict[str, Any]:
     if supplied.keys() - book.parameters.keys():
         raise WorkflowValidationError("Unknown runbook parameter.")
-    types: dict[str, tuple[type, ...]] = {"string": (str,), "integer": (int,), "number": (int, float), "boolean": (bool,), "array": (list,), "object": (dict,)}
-    bound = {}
+    types: dict[str, tuple[type, ...]] = {
+        "string": (str,),
+        "integer": (int,),
+        "number": (int, float),
+        "boolean": (bool,),
+        "array": (list,),
+        "object": (dict,),
+    }
+    bound: dict[str, Any] = {}
     for key, spec in book.parameters.items():
         value = supplied.get(key, spec.default)
         if value is None:

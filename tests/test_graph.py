@@ -8,14 +8,24 @@ from flowops.streamlit.canvas import apply_canvas
 
 
 def minimal() -> Runbook:
-    return Runbook(name="Test", nodes=[Node(id="start", action="core.start"), Node(id="end", action="core.end")], edges=[Edge(source="start", target="end")])
+    return Runbook(
+        name="Test",
+        nodes=[Node(id="start", action="core.start"), Node(id="end", action="core.end")],
+        edges=[Edge(source="start", target="end")],
+    )
 
 
 class GraphTests(unittest.TestCase):
     def test_valid_and_invalid_graphs(self) -> None:
         book = minimal()
         self.assertEqual(validate_graph(book), ["start", "end"])
-        invalids = [Runbook(name="Empty"), book.model_copy(deep=True), book.model_copy(deep=True), book.model_copy(deep=True), book.model_copy(deep=True)]
+        invalids = [
+            Runbook(name="Empty"),
+            book.model_copy(deep=True),
+            book.model_copy(deep=True),
+            book.model_copy(deep=True),
+            book.model_copy(deep=True),
+        ]
         invalids[1].edges.append(Edge(source="end", target="start"))
         invalids[2].edges[0].target = "missing"
         invalids[3].nodes.append(Node(id="orphan", action="core.end"))
@@ -29,7 +39,12 @@ class GraphTests(unittest.TestCase):
         scope = {"nodes": {"get": {"output": {"items": [{"id": "123"}]}}}}
         self.assertEqual(resolve("{{ nodes.get.output.items }}", scope), [{"id": "123"}])
         self.assertEqual(resolve("ID: {{ nodes.get.output.items[0].id }}", scope), "ID: 123")
-        for expression in ["{{ __import__('os') }}", "{{ nodes.get.__class__ }}", "{{nodes.missing.output}}", "{{ nodes.get.output.items }} x"]:
+        for expression in [
+            "{{ __import__('os') }}",
+            "{{ nodes.get.__class__ }}",
+            "{{nodes.missing.output}}",
+            "{{ nodes.get.output.items }} x",
+        ]:
             with self.subTest(expression=expression):
                 with self.assertRaises(WorkflowValidationError):
                     resolve(expression, scope)
@@ -47,7 +62,14 @@ class GraphTests(unittest.TestCase):
 
     def test_canvas_does_not_trust_config_and_readonly(self) -> None:
         book = minimal()
-        payload = {"nodes": [{"id": "start", "position": {"x": 30, "y": 60}, "config": {"evil": True}}, {"id": "end"}], "edges": [{"source": "start", "target": "end"}], "selected_id": "start"}
+        payload = {
+            "nodes": [
+                {"id": "start", "position": {"x": 30, "y": 60}, "config": {"evil": True}},
+                {"id": "end"},
+            ],
+            "edges": [{"source": "start", "target": "end"}],
+            "selected_id": "start",
+        }
         result, selected = apply_canvas(book, payload)
         self.assertEqual(result.nodes[0].position, (30, 60))
         self.assertFalse(result.nodes[0].config)

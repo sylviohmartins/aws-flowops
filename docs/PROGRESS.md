@@ -25,3 +25,16 @@ tipo booleano versus inteiro, outputs ausentes e payload não confiável do nave
 5. Políticas, RBAC, aprovações e auditoria.
 6. Interface completa, integração e templates.
 7. Demonstração E2E, regressão e documentação.
+
+## Etapa 3 — execução
+
+Engine independente, worker em thread pool, fila persistente com claim transacional, token
+de submissão e conflito em replay incompatível. Checkpoints por nó, reconstrução após pausa,
+branches, execução paralela de leituras, mutações serializadas por conta/região, cancelamento
+e simulação explícita. Retry exige idempotência e erro transitório permitido. Manual Approval
+é persistida e vinculada ao digest do snapshot/contexto/inputs.
+
+Testes locais: 16 testes cumulativos passando, incluindo corrida entre workers, nenhuma
+mutação em simulação, aprovação por outra pessoa, cancelamento e retries. A CI da etapa 2
+passou em lint/testes/segurança/dependências/build; os dois erros de tipagem encontrados
+foram corrigidos (nomes com tipos distintos e anotação de dicionário).
