@@ -77,7 +77,6 @@ class AWSAction:
             raise PolicyViolation("AWS request exceeds configured page/item/payload limits.")
         if limits.paginate and not self.spec.read_only:
             raise PolicyViolation("Automatic pagination is limited to curated read-only actions.")
-        # Explicit JSON-to-SDK adaptation, documented in the schema browser.
         for key in ("MessageBody", "Message", "Payload"):
             if key in parameters and isinstance(parameters[key], (dict, list)):
                 parameters[key] = json.dumps(
@@ -121,13 +120,24 @@ class AWSAction:
 
     def preview(self, config: dict[str, Any], context: ActionContext) -> Any:
         parameters, limits = self.prepare(config)
+        result: Any = None
+        simulator = getattr(self.backend, "preview", None)
+        if callable(simulator):
+            result = simulator(
+                self.spec.service,
+                self.spec.operation,
+                parameters,
+                context,
+                limits,
+            )
         return {
             "simulation": True,
             "native_dry_run": False,
             "action": self.spec.id,
             "parameters": config,
             "limits": {"max_items": limits.max_items, "max_pages": limits.max_pages},
-            "note": "Mutation was not called. This is a plan, not a confirmed AWS result.",
+            "simulated_result": result,
+            "note": "Mutation was not called against the selected AWS account.",
         }
 
     def execute(self, config: dict[str, Any], context: ActionContext) -> Any:
@@ -164,6 +174,6 @@ def register_generic(
     allowlist: set[str],
 ) -> str:
     spec = catalog.generic_spec(service, operation, allowlist)
-    if spec.id not in {meta.id for meta in registry.list()}:
+    if spec.id not in {metadata.id for metadata in registry.list()}:
         registry.register(AWSAction(spec, backend, catalog))
     return spec.id
