@@ -105,7 +105,7 @@ def test_json_object_and_parameter_coercion_contract() -> None:
         FlowOpsUI._json_object("[]", label="Config")
 
     values = {
-        "items": (Parameter(type="array"), '[1, 2]'),
+        "items": (Parameter(type="array"), "[1, 2]"),
         "config": (Parameter(type="object"), '{"a": true}'),
         "optional": (Parameter(type="string", required=False), ""),
         "required": (Parameter(type="string", required=True), "x"),
@@ -144,7 +144,9 @@ def test_parameter_inputs_render_every_supported_type(monkeypatch: pytest.Monkey
     assert fake.captions == ["flag help"]
 
 
-def test_selected_and_select_runbook_recover_stale_selection(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_selected_and_select_runbook_recover_stale_selection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     fake = FakeStreamlit()
     monkeypatch.setitem(sys.modules, "streamlit", fake)
     first = Runbook(name="First", team="ops")
@@ -167,12 +169,16 @@ def test_selected_and_select_runbook_recover_stale_selection(monkeypatch: pytest
     published = presenter._select_runbook(label="Published", published_only=True)
     assert published is second
 
-    presenter.repository = SimpleNamespace(list_runbooks=lambda query="": [], versions=lambda value: [])
+    presenter.repository = SimpleNamespace(
+        list_runbooks=lambda query="": [], versions=lambda value: []
+    )
     assert presenter._select_runbook() is None
     assert fake.infos[-1] == "No runbooks available."
 
 
-def test_dashboard_metrics_cover_empty_and_populated_history(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_dashboard_metrics_cover_empty_and_populated_history(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     fake = FakeStreamlit()
     monkeypatch.setitem(sys.modules, "streamlit", fake)
     presenter = ui()
