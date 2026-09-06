@@ -32,9 +32,7 @@ STATUS_SYMBOL = {
 
 def _compatible(source: str, target: str) -> bool:
     return (
-        source in {target, "any"}
-        or target == "any"
-        or (source == "integer" and target == "number")
+        source in {target, "any"} or target == "any" or (source == "integer" and target == "number")
     )
 
 
