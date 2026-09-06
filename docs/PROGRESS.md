@@ -137,3 +137,31 @@ Streamlit. Cobertura real: **65,89%** (floor 60%), com engine 81%, graph 82%, po
 security 90%, observability 90%, execution store 92% e AWS actions 81%. Bandit não identificou
 issues em 4.828 linhas de código, `pip-audit` não encontrou vulnerabilidades conhecidas nas
 dependências auditáveis e o build produziu sdist e wheel com sucesso.
+
+## Etapa 8 — fechamento de cobertura e regressão
+
+A etapa foi deliberadamente restrita à suíte de testes, jornadas de aceitação e ao gate de CI;
+nenhum código de produção foi alterado. Foram adicionados testes de contrato, core, engine,
+persistência, provider AWS, demo, mapping, Streamlit, integração, editor, páginas operacionais,
+Data Mapper e jornadas de negócio. O smoke standalone agora cobre também o fluxo
+criar → persistir → publicar → executar, e os testes de apresentação exercitam clone, archive,
+exclusão lógica, approvals, rerun, auditoria, Resource Explorer, execução em produção e
+correlation context.
+
+A cobertura saiu do patamar de 65,89% da Etapa 7 para **96,18%**, sem excluir módulos críticos
+do cálculo. No relatório que estabeleceu o novo piso, application/actions/expressions/logic,
+policies/security/serialization, domínio, observability, database, catálogo AWS, resources,
+canvas, failure workspace e integração Streamlit ficaram em 100%; engine ficou em 96%,
+persistência em 97–100%, provider AWS em 98–100% e workspace Streamlit em 92%.
+
+O workflow Quality passou a exigir **96% de cobertura global**. Esse piso é uma proteção contra
+regressão e não substitui assertions de comportamento. Ramos defensivos residuais não são
+preenchidos artificialmente apenas para produzir 100% nominal quando isso não acrescenta uma
+invariante útil.
+
+Evidência funcional: no SHA `5d2bd5e`, o workflow `34015793687` executou **141/141 testes** com
+**96,18% de cobertura**; mypy, lint, PostgreSQL 16, Bandit, `pip-audit` e build passaram, com
+apenas um ajuste de formatação posteriormente aplicado. O SHA `f7597ee` confirmou o mesmo
+conteúdo funcional com o workflow `34016334328` integralmente verde. Por fim, o SHA `660be84`
+validou no workflow `34016406796` o mesmo conjunto com o novo `--cov-fail-under=96`, incluindo
+formatter, lint, mypy, testes/cobertura, segurança, auditoria de dependências e build.

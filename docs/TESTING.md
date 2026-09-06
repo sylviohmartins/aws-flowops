@@ -14,7 +14,7 @@ A workflow Quality executa em Python 3.12:
 ruff format --diff .
 ruff check .
 mypy flowops
-pytest --cov=flowops --cov-report=term-missing --cov-report=xml --cov-fail-under=60
+pytest --cov=flowops --cov-report=term-missing --cov-report=xml --cov-fail-under=96
 bandit -r flowops -ll
 pip-audit
 python -m build
@@ -84,7 +84,9 @@ A CI cria um PostgreSQL real, aplica as migrations e executa:
 ### Streamlit
 
 `streamlit.testing.v1.AppTest` inicializa o standalone e percorre todas as páginas principais,
-falhando se qualquer rota gerar exception de renderização.
+falhando se qualquer rota gerar exception de renderização. Jornadas adicionais exercitam
+criação, persistência, publicação, execução, editor, Data Mapper, approvals, histórico,
+rerun, auditoria, Resource Explorer, clone, archive e exclusão lógica.
 
 ## Testes com AWS real
 
@@ -100,6 +102,8 @@ provar a suíte. O caminho recomendado é:
 
 ## Regressão
 
-O piso de cobertura de 60% evita quedas silenciosas na cobertura global. Ele não substitui
-assertions de comportamento: código de segurança ou engine deve receber testes específicos
-mesmo quando a cobertura global já estiver acima do mínimo.
+O piso global de cobertura de 96% evita quedas silenciosas na cobertura agregada. Ele não
+substitui assertions de comportamento: código de segurança, persistência, provider ou engine
+deve receber testes específicos mesmo quando a cobertura global já estiver acima do mínimo.
+O objetivo é preservar invariantes operacionais, e não perseguir artificialmente 100% por meio
+de testes sem valor de regressão.
