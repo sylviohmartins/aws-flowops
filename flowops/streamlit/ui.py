@@ -22,7 +22,7 @@ from flowops.domain.models import (
 )
 from flowops.persistence.repository import digest
 from flowops.providers.aws.resources import EXPLORERS, explore
-from flowops.streamlit.canvas import workflow_canvas
+from flowops.streamlit.canvas import duplicate_node, workflow_canvas
 from flowops.templates import TEMPLATES
 
 ExportFormat = Literal["yaml", "json"]
@@ -311,57 +311,61 @@ class FlowOpsUI:
         require(self.user, "runbook.read", book)
         working = self._working_draft(book, revision)
         editable = self._granted("runbook.edit", book)
-        with st.form(f"flowops:metadata:{book.id}"):
-            name = st.text_input("Name", value=working.name, disabled=not editable)
-            description = st.text_area(
-                "Description",
-                value=working.description,
-                disabled=not editable,
-                height=80,
-            )
-            tags = st.text_input(
-                "Tags (comma separated)",
-                value=", ".join(working.tags),
-                disabled=not editable,
-            )
-            environments = st.multiselect(
-                "Allowed environments",
-                ["dev", "staging", "production"],
-                default=working.environments,
-                disabled=not editable,
-            )
-            metadata_applied = st.form_submit_button("Apply metadata", disabled=not editable)
-        if metadata_applied:
-            working.name = name.strip() or working.name
-            working.description = description
-            working.tags = [tag.strip() for tag in tags.split(",") if tag.strip()]
-            working.environments = environments or ["dev"]
-            self._store_working(working, revision)
-            st.rerun()
+        with st.expander("Runbook details", expanded=False):
+            with st.form(f"flowops:metadata:{book.id}"):
+                name = st.text_input("Name", value=working.name, disabled=not editable)
+                description = st.text_area(
+                    "Description",
+                    value=working.description,
+                    disabled=not editable,
+                    height=80,
+                )
+                tags = st.text_input(
+                    "Tags (comma separated)",
+                    value=", ".join(working.tags),
+                    disabled=not editable,
+                )
+                environments = st.multiselect(
+                    "Allowed environments",
+                    ["dev", "staging", "production"],
+                    default=working.environments,
+                    disabled=not editable,
+                )
+                metadata_applied = st.form_submit_button("Apply metadata", disabled=not editable)
+            if metadata_applied:
+                working.name = name.strip() or working.name
+                working.description = description
+                working.tags = [tag.strip() for tag in tags.split(",") if tag.strip()]
+                working.environments = environments or ["dev"]
+                self._store_working(working, revision)
+                st.rerun()
 
-        st.subheader("Parameters")
-        parameter_json = st.text_area(
-            "Parameter schema JSON",
-            value=json.dumps(
-                {key: value.model_dump(mode="json") for key, value in working.parameters.items()},
-                indent=2,
-                ensure_ascii=False,
-            ),
-            height=160,
-            disabled=not editable,
-            key=f"flowops:parameters:{book.id}:{revision}",
-        )
-        if st.button(
-            "Apply parameters",
-            disabled=not editable,
-            key=f"flowops:parameters-apply:{book.id}",
-        ):
-            raw = self._json_object(parameter_json, label="Parameter schema")
-            working.parameters = {
-                key: Parameter.model_validate(value) for key, value in raw.items()
-            }
-            self._store_working(working, revision)
-            st.rerun()
+            st.subheader("Parameters")
+            parameter_json = st.text_area(
+                "Parameter schema JSON",
+                value=json.dumps(
+                    {
+                        key: value.model_dump(mode="json")
+                        for key, value in working.parameters.items()
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                ),
+                height=160,
+                disabled=not editable,
+                key=f"flowops:parameters:{book.id}:{revision}",
+            )
+            if st.button(
+                "Apply parameters",
+                disabled=not editable,
+                key=f"flowops:parameters-apply:{book.id}",
+            ):
+                raw = self._json_object(parameter_json, label="Parameter schema")
+                working.parameters = {
+                    key: Parameter.model_validate(value) for key, value in raw.items()
+                }
+                self._store_working(working, revision)
+                st.rerun()
 
         st.subheader("Action palette")
         logic = sorted(LOGIC_REQUIRED)
@@ -391,8 +395,9 @@ class FlowOpsUI:
                 id=node_id,
                 action=action_id,
                 label=action_id,
-                position=(end.position[0] - 220, end.position[1]),
+                position=end.position,
             )
+            end.position = (end.position[0] + 260, end.position[1])
             incoming = [edge for edge in working.edges if edge.target == end.id]
             working.edges = [edge for edge in working.edges if edge.target != end.id]
             for edge in incoming:
@@ -402,6 +407,30 @@ class FlowOpsUI:
             working.nodes.append(node)
             self._store_working(working, revision)
             st.rerun()
+
+        st.subheader("Canvas")
+        canvas_book, canvas_selected = workflow_canvas(
+            working,
+            key=f"flowops-canvas-{book.id}",
+            readonly=not editable,
+        )
+        self._store_working(canvas_book, revision)
+        if len(canvas_book.edges) > len(working.edges):
+            st.rerun()
+        working = canvas_book
+        selection_key = f"flowops:node:{book.id}"
+        canvas_selection_key = f"flowops:canvas-selection:{book.id}"
+        pending = st.session_state.pop(f"flowops:pending-node:{book.id}", None)
+        if pending is not None:
+            st.session_state[selection_key] = pending
+        elif canvas_selected and canvas_selected != st.session_state.get(canvas_selection_key):
+            st.session_state[selection_key] = canvas_selected
+        st.session_state[canvas_selection_key] = canvas_selected
+        if st.session_state.get(selection_key) not in {node.id for node in working.nodes}:
+            st.session_state.pop(selection_key, None)
+        st.caption(
+            "Drag handles to connect nodes. Right-click an edge to edit its branch or disconnect it. Duplicated nodes must be connected before saving."
+        )
 
         if working.nodes:
             selected_node_id = st.selectbox(
@@ -473,6 +502,13 @@ class FlowOpsUI:
                 st.rerun()
             if editable and node.action not in {"core.start", "core.end"}:
                 if st.button(
+                    "Duplicate selected node", key=f"flowops:duplicate:{book.id}:{node.id}"
+                ):
+                    working, copied_id = duplicate_node(working, node.id)
+                    self._store_working(working, revision)
+                    st.session_state[f"flowops:pending-node:{book.id}"] = copied_id
+                    st.rerun()
+                if st.button(
                     "Remove selected node",
                     key=f"flowops:remove:{book.id}:{node.id}",
                 ):
@@ -491,21 +527,17 @@ class FlowOpsUI:
                     self._store_working(working, revision)
                     st.rerun()
 
-        st.subheader("Canvas")
-        canvas_book, _ = workflow_canvas(
-            working,
-            key=f"flowops-canvas-{book.id}",
-            readonly=not editable,
-        )
-        self._store_working(canvas_book, revision)
-        working = canvas_book
         dirty = digest(working.model_dump()) != digest(book.model_dump())
         if dirty:
             st.warning("Unsaved editor changes are held only in this UI session.")
         columns = st.columns(3)
+        validation_key = f"flowops:validated:{book.id}"
         if columns[0].button("Validate", key=f"flowops:validate:{book.id}"):
-            order = validate_graph(working, self.runtime.registry)
-            st.success(f"Valid workflow: {len(order)} nodes.")
+            st.session_state.pop(validation_key, None)
+            validate_graph(working, self.runtime.registry)
+            st.session_state[validation_key] = digest(working.model_dump())
+        if st.session_state.get(validation_key) == digest(working.model_dump()):
+            st.success(f"Valid workflow: {len(working.nodes)} nodes.")
         if columns[1].button(
             "Save draft",
             disabled=not editable,

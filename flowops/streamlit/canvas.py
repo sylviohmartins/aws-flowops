@@ -9,7 +9,7 @@ import math
 from typing import Any
 
 from flowops.domain.errors import WorkflowValidationError
-from flowops.domain.models import Edge, Runbook
+from flowops.domain.models import Edge, Runbook, new_id
 from flowops.persistence.repository import digest
 
 
@@ -17,7 +17,10 @@ def apply_canvas(
     book: Runbook, payload: dict[str, Any], *, readonly: bool = False
 ) -> tuple[Runbook, str | None]:
     if readonly:
-        return book.model_copy(deep=True), None
+        selected = payload.get("selected_id")
+        return book.model_copy(deep=True), selected if selected in {
+            n.id for n in book.nodes
+        } else None
     result = book.model_copy(deep=True)
     known = {node.id: node for node in result.nodes}
     received = payload.get("nodes", [])
@@ -45,6 +48,22 @@ def apply_canvas(
     return result, selected if selected in ids else None
 
 
+def duplicate_node(book: Runbook, node_id: str) -> tuple[Runbook, str]:
+    """Copy definition and layout without inventing execution edges."""
+    result = book.model_copy(deep=True)
+    source = next((node for node in result.nodes if node.id == node_id), None)
+    if source is None or source.action in {"core.start", "core.end"}:
+        raise WorkflowValidationError("Select an action or logic node to duplicate.")
+    if len(result.nodes) >= 200:
+        raise WorkflowValidationError("Canvas size limit exceeded.")
+    clone = source.model_copy(deep=True)
+    clone.id = f"n_{new_id()[:12]}"
+    clone.label = f"{source.label or source.id} (copy)"[:120]
+    clone.position = (source.position[0] + 40, source.position[1] + 100)
+    result.nodes.append(clone)
+    return result, clone.id
+
+
 def workflow_canvas(
     book: Runbook,
     *,
@@ -57,7 +76,7 @@ def workflow_canvas(
     from streamlit_flow.elements import StreamlitFlowEdge, StreamlitFlowNode
     from streamlit_flow.state import StreamlitFlowState
 
-    state_key, hash_key = f"{key}:state", f"{key}:hash"
+    state_key, hash_key, revision_key = f"{key}:state", f"{key}:hash", f"{key}:revision"
     fingerprint = digest(
         {"book": book.model_dump(), "readonly": readonly, "statuses": statuses or {}}
     )
@@ -66,9 +85,11 @@ def workflow_canvas(
             StreamlitFlowNode(
                 id=node.id,
                 pos=node.position,
+                source_position="right",
+                target_position="left",
                 data={
                     "content": html.escape(
-                        f"{node.label or node.id}\n{node.action}\n{(statuses or {}).get(node.id, '')}"
+                        f"{node.label or node.id}\n\n{'' if node.label == node.action else node.action}\n\n{(statuses or {}).get(node.id, '')}"
                     )
                 },
                 node_type="input"
@@ -103,8 +124,12 @@ def workflow_canvas(
         ]
         st.session_state[state_key] = StreamlitFlowState(nodes, edges)
         st.session_state[hash_key] = fingerprint
+        # v1.6.1 returns the previous widget value while applying new Python props.
+        # A new widget identity prevents that stale graph from deleting new nodes.
+        # Browser layout/selection changes retain this revision and the same iframe.
+        st.session_state[revision_key] = st.session_state.get(revision_key, 0) + 1
     state = streamlit_flow(
-        key,
+        f"{key}:{st.session_state[revision_key]}",
         st.session_state[state_key],
         height=560,
         fit_view=True,
@@ -119,4 +144,7 @@ def workflow_canvas(
     st.session_state[hash_key] = digest(
         {"book": result.model_dump(), "readonly": readonly, "statuses": statuses or {}}
     )
+    if len(result.edges) > len(book.edges):
+        # New browser edges omit deletable/markers; normalize them on the next render.
+        st.session_state.pop(hash_key, None)
     return result, selected

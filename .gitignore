@@ -17,3 +17,5 @@ build/
 *.egg-info/
 test-results/
 playwright-report/
+
+browser-artifacts/

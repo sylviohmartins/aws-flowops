@@ -40,6 +40,15 @@ class Action(Protocol):
     def execute(self, config: dict[str, Any], context: ActionContext) -> Any: ...
 
 
+def affected_records(action: Action, config: dict[str, Any]) -> int:
+    """Providers may expose a conservative impact estimator for compound calls."""
+    estimator = getattr(action, "affected_records", None)
+    count = estimator(config) if callable(estimator) else 1
+    if type(count) is not int or count < 1:
+        raise WorkflowValidationError("An action impact estimate must be a positive integer.")
+    return count
+
+
 class ActionRegistry:
     def __init__(self) -> None:
         self._actions: dict[str, Action] = {}

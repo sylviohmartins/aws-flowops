@@ -97,12 +97,15 @@ def test_editor_metadata_parameters_insert_remove_validate_and_save_journey() ->
             app.run(timeout=20)
             assert list(app.exception) == []
             assert any("Valid workflow" in success.value for success in app.success)
+            app.run(timeout=20)
+            assert any("Valid workflow" in success.value for success in app.success)
 
             element(app.selectbox, "Node properties").set_value(inserted.id)
             app.run(timeout=20)
             element(app.button, "Remove selected node").click()
             app.run(timeout=20)
             assert list(app.exception) == []
+            assert not any("Valid workflow" in success.value for success in app.success)
             element(app.button, "Save draft").click()
             app.run(timeout=20)
             assert list(app.exception) == []

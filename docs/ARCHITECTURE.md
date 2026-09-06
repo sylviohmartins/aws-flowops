@@ -5,29 +5,17 @@
 AWS FlowOps Studio separa apresentação, aplicação, domínio, persistência e providers para que
 o Streamlit não seja a fonte de verdade do produto.
 
-```text
-Host / Standalone Streamlit
-        |
-        v
-FlowOpsPage / FlowOpsUI
-        |
-        v
-FlowOpsRuntime
-   |        |        |
-   v        v        v
-Engine   Worker   ActionRegistry
-   |        |        |
-   +--------+--------+
-            |
-            v
-      Repository / ExecutionStore
-            |
-       SQLite | PostgreSQL
-            |
-            v
-        audit/checkpoints
-
-ActionRegistry -> DemoBackend ou BotoBackend -> AWS
+```mermaid
+flowchart TD
+    Host["Streamlit standalone ou host"] --> Page["FlowOpsPage"]
+    Page --> Runtime["FlowOpsRuntime"]
+    Runtime --> Engine["Engine e Worker"]
+    Runtime --> Registry["ActionRegistry"]
+    Engine --> Registry
+    Engine --> Store["Repository e ExecutionStore"]
+    Store --> DB["SQLite ou PostgreSQL"]
+    Registry --> Provider["DemoBackend ou BotoBackend"]
+    Provider --> AWS["AWS"]
 ```
 
 ## Camadas

@@ -165,3 +165,42 @@ apenas um ajuste de formatação posteriormente aplicado. O SHA `f7597ee` confir
 conteúdo funcional com o workflow `34016334328` integralmente verde. Por fim, o SHA `660be84`
 validou no workflow `34016406796` o mesmo conjunto com o novo `--cov-fail-under=96`, incluindo
 formatter, lint, mypy, testes/cobertura, segurança, auditoria de dependências e build.
+
+
+## Etapa 9 — aceitação final e correções de release
+
+A auditoria literal do prompt foi consolidada em `docs/ACCEPTANCE.md`, com dezoito grupos de
+requisitos e referências a implementação, testes e documentação. ADRs 011/012 e o índice de
+temas completam o contrato de Actions e a decisão de DAG sem renumerar decisões históricas.
+Os documentos exigidos na raiz apontam para a documentação canônica em `docs/`.
+
+Foram fechados os gaps de formulários tipados, duplicação e seleção de nós, schemas reais no
+modo demo, mapper de objeto para mensagem JSON, revisão Lambda CURRENT/PROPOSED/diff com
+sanitização e vínculo a RevisionId, confirmação renovada para replay live em produção,
+contagem agregada de impacto antes de efeitos, detecção de falhas parciais S3 e reconciliação
+manual sem repetir a chamada que falhou. O checkpoint terminal preserva status e output na
+mesma gravação. A fila tem dispatcher periódico, encerramento controlado e consulta de
+pendências independente do limite do histórico.
+
+O Chromium revelou e ajudou a corrigir dois defeitos reais do componente de canvas: um valor
+antigo do widget podia descartar nós inseridos, e novas arestas vinham sem permissão de
+exclusão. O adaptador agora renova sua identidade em alterações externas e normaliza novas
+arestas após atualizar a working copy. Os testes usam a confirmação de término do rerun do
+Streamlit para evitar cliques sobre uma apresentação ainda em atualização.
+
+Evidência funcional integral: commit
+[`19fb9c90cb75292f056a1b48b14ad701d675998b`](https://github.com/sylviohmartins/aws-flowops/commit/19fb9c90cb75292f056a1b48b14ad701d675998b),
+[Quality 34060950606](https://github.com/sylviohmartins/aws-flowops/actions/runs/34060950606),
+**SUCCESS**, com **169 testes aprovados e 96,50% de cobertura**, sem reduzir o piso de 96%.
+Format, Ruff lint, mypy, PostgreSQL 16 real, Bandit, pip-audit, build e navegador passaram.
+A jornada real criou um runbook, configurou GetItem/SendMessage, mapeou output para input,
+moveu/conectou/desconectou, validou, salvou, publicou, executou e reexecutou pelo histórico.
+As duas execuções terminaram SUCCESS; grafo e mapping foram conferidos no banco, e a
+screenshot do histórico foi inspecionada com todos os nós bem-sucedidos.
+
+O fechamento documental exige outra CI da árvore candidata e, após squash sem force, do SHA
+exato de main. A evidência desse último gate fica no workflow Quality associado ao commit
+promovido. Não há migration ou provisionamento AWS nesta etapa. O rollback e a restrição de
+intervenções manuais pendentes estão em `docs/ACCEPTANCE.md`. AWS real, IAM efetivo, SSO e
+CloudTrail continuam sujeitos à homologação na organização; os testes não exigem credenciais
+reais. Branches retidas por ausência de delete-ref estão listadas na mesma matriz.

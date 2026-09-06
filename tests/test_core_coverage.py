@@ -408,9 +408,8 @@ class FakeStore:
     def __init__(self, rows: list[Any]) -> None:
         self.rows = rows
 
-    def history(self, limit: int) -> list[Any]:
-        assert limit == 2000
-        return self.rows
+    def pending_ids(self) -> list[str]:
+        return [row.id for row in self.rows if row.status == Status.PENDING]
 
 
 class FakeEngine:

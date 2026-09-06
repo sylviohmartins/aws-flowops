@@ -35,7 +35,7 @@ def test_apply_canvas_readonly_and_valid_layout_edge_selection() -> None:
     )
     assert readonly == book
     assert readonly is not book
-    assert selected is None
+    assert selected == "work"
 
     result, selected = apply_canvas(
         book,

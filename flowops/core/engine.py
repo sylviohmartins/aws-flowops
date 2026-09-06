@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any
 
-from flowops.core.actions import ActionContext, ActionRegistry
+from flowops.core.actions import ActionContext, ActionRegistry, affected_records
 from flowops.core.expressions import resolve
 from flowops.core.graph import bind_parameters, validate_graph
 from flowops.core.logic import logic
@@ -241,6 +241,12 @@ class Engine:
                 unhandled_failure = any(
                     detail["status"] == Status.FAILED
                     and (key not in nodes or nodes[key].failure_policy != "FAIL_BRANCH")
+                    and not any(
+                        parent.action == "core.for_each"
+                        and key.startswith(f"{parent.id[:48]}__")
+                        and key[len(parent.id[:48]) + 2 :].isdigit()
+                        for parent in nodes.values()
+                    )
                     for key, detail in completed.items()
                 )
                 execution.status = Status.FAILED if unhandled_failure else Status.SUCCESS
@@ -295,6 +301,9 @@ class Engine:
     def _run_node(self, execution: Execution, node: Node) -> Outcome:
         if not node.enabled:
             return Outcome(Status.SUCCESS, {"disabled": True})
+        prior = self.store.nodes(execution.id).get(node.id, {})
+        if prior.get("intervention"):
+            return self._intervention(execution, node, prior)
         started = time.monotonic()
         scope = self._scope(execution, node)
         raw = dict(node.config)
@@ -346,19 +355,59 @@ class Engine:
                 outcome = self._action(execution, nested, nested.config, detail)
             elif node.action == "core.for_each" and config.get("action"):
                 mapped, _ = logic(node.action, config, scope, self.policy.max_affected)
+                interval = config.get("interval_seconds", 0)
+                if type(interval) not in {int, float} or not 0 <= interval <= 10:
+                    raise WorkflowValidationError(
+                        "Iteration interval must be between 0 and 10 seconds."
+                    )
+                action = self.registry.get(config["action"])
+                affected = 0
+                for item in mapped["items"]:
+                    action.validate(item)
+                    affected += affected_records(action, item)
+                needs_approval = self.policy.action(execution, action.metadata, affected)
+                if needs_approval:
+                    gate = self._approval(
+                        execution,
+                        node,
+                        config,
+                        {
+                            "action": action.metadata.id,
+                            "affected": affected,
+                            "risk": action.metadata.risk.value,
+                            "items": mapped["items"],
+                        },
+                    )
+                    if gate.status != Status.SUCCESS:
+                        return gate
                 results = []
                 for index, item in enumerate(mapped["items"]):
+                    deadline = time.monotonic() + (
+                        interval if index and not execution.dry_run else 0
+                    )
+                    while time.monotonic() < deadline:
+                        if self.store.cancelled(execution.id):
+                            return Outcome(Status.CANCELLED)
+                        time.sleep(min(0.1, max(0, deadline - time.monotonic())))
                     child = Node(
                         id=f"{node.id[:48]}__{index}",
                         action=config["action"],
                         config=item,
                         retry=node.retry,
                     )
-                    prior = self.store.nodes(execution.id).get(child.id)
-                    if prior and prior["status"] == Status.SUCCESS:
-                        results.append(prior["output"])
+                    child_prior = self.store.nodes(execution.id).get(child.id)
+                    if child_prior and child_prior["status"] == Status.SUCCESS:
+                        results.append(child_prior["output"])
                         continue
-                    item_result = self._action(execution, child, item, detail)
+                    try:
+                        item_result = self._action(
+                            execution, child, item, detail, approval_checked=True
+                        )
+                    except FlowOpsError as exc:
+                        self.store.checkpoint(
+                            execution, child.id, Status.FAILED, {"error": str(exc), "input": item}
+                        )
+                        raise
                     self._record(execution, child, item_result)
                     if item_result.status != Status.SUCCESS:
                         return item_result
@@ -376,12 +425,24 @@ class Engine:
             outcome.output = bounded_output(outcome.output)
             detail["duration_seconds"] = time.monotonic() - started
             detail["attempts"] = max(1, detail["attempts"])
+            # Persist terminal state and its output together. A crash between this write
+            # and _record must never leave a successful checkpoint without its result.
+            detail.update(output=outcome.output, branch=outcome.branch, error=outcome.error)
             self.store.checkpoint(execution, node.id, outcome.status, detail)
             return outcome
         except FlowOpsError as exc:
             detail["duration_seconds"] = time.monotonic() - started
             detail["error"] = str(exc)
+            if isinstance(exc, ProviderError):
+                detail["provider_details"] = bounded_output(exc.details)
             self.store.checkpoint(execution, node.id, Status.FAILED, detail)
+            if (
+                node.failure_policy == "MANUAL_INTERVENTION"
+                and isinstance(exc, ProviderError)
+                and not execution.dry_run
+            ):
+                detail["intervention"] = True
+                return self._intervention(execution, node, detail)
             if node.failure_policy == "CONTINUE":
                 return Outcome(Status.SUCCESS, {"error": str(exc), "failed": True})
             return Outcome(
@@ -395,6 +456,26 @@ class Engine:
                 branch="failure" if node.failure_policy == "FAIL_BRANCH" else "default",
                 error="Invalid action input or unexpected provider failure.",
             )
+
+    def _intervention(self, execution: Execution, node: Node, detail: dict[str, Any]) -> Outcome:
+        """A reviewer attests external reconciliation; the failed call is never replayed."""
+        gate = self._approval(
+            execution,
+            node,
+            detail.get("input", {}),
+            {
+                "manual_intervention": True,
+                "input": detail.get("input"),
+                "error": detail.get("error"),
+                "provider_details": detail.get("provider_details"),
+                "instruction": "Approve only after external reconciliation. Continue without replaying the failed action; no AWS result is fabricated.",
+            },
+        )
+        gate.output = {"manual_intervention": True, "reconciled": gate.status == Status.SUCCESS}
+        gate.error = detail.get("error")
+        detail.update(output=gate.output, branch=gate.branch)
+        self.store.checkpoint(execution, node.id, gate.status, detail)
+        return gate
 
     def _approval(
         self, execution: Execution, node: Node, config: dict[str, Any], preview: dict[str, Any]
@@ -422,16 +503,17 @@ class Engine:
         )
 
     def _action(
-        self, execution: Execution, node: Node, config: dict[str, Any], detail: dict[str, Any]
+        self,
+        execution: Execution,
+        node: Node,
+        config: dict[str, Any],
+        detail: dict[str, Any],
+        *,
+        approval_checked: bool = False,
     ) -> Outcome:
         action = self.registry.get(node.action)
         action.validate(config)
-        affected = (
-            len(config.get("Entries", []))
-            or sum(len(v) for v in config.get("RequestItems", {}).values())
-            if "RequestItems" in config
-            else len(config.get("Entries", [])) or 1
-        )
+        affected = affected_records(action, config)
         needs_approval = self.policy.action(execution, action.metadata, affected)
         context = ActionContext(
             execution.id,
@@ -440,7 +522,7 @@ class Engine:
             execution.dry_run,
             execution.correlation_context,
         )
-        if needs_approval:
+        if needs_approval and not approval_checked:
             gate = self._approval(
                 execution,
                 node,
