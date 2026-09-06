@@ -7,15 +7,21 @@ embutido em uma aplicação existente.
 
 ## O que está incluído
 
-- editor visual de DAG com Start, End/Stop, Condition, Validation, Wait, For Each, Retry e
-  Manual Approval;
+- editor visual de DAG com Start, End/Stop, Condition, Switch, Filter, Map, For Each, Batch,
+  Parallel, Merge, Wait, Retry, Validation, Manual Approval e Compensation;
+- Data Mapper orientado pelos schemas botocore, com browser de campos, autocomplete de fontes,
+  preview, defaults e validação de tipos para mappings conhecidos;
 - drafts com controle otimista de concorrência e versões publicadas imutáveis;
-- execução assíncrona durável com checkpoints por nó, retomada, cancelamento e locks por
-  conta/região;
+- import/export YAML/JSON determinístico, com `schema_version`, `node_version` e migração
+  fail-closed de definições;
+- execução assíncrona durável com checkpoints por nó, retomada, cancelamento, locks por
+  conta/região, failure branches explícitos e compensating Actions governadas;
 - simulação FlowOps sem mutações reais e separada do `DryRun` nativo dos serviços AWS;
 - RBAC, escopo por equipe, proteção de produção, `aws.destructive`, limites de impacto e
   two-person approval;
 - auditoria contextual WHO / WHAT / WHEN / WHERE / WHY / RESULT com redaction central;
+- structured logging sanitizado, métricas operacionais canônicas e correlation context
+  propagado para SQS/SNS quando suportado;
 - ações curadas para DynamoDB, SQS, SNS, Lambda e S3, mais operações botocore adicionais
   somente quando allowlisted pelo host;
 - credenciais boto3 por profile, role/AssumeRole ou provider chain; credenciais estáticas não
@@ -83,7 +89,11 @@ context = AWSContext(
     profile="operations-staging",
 )
 
-FlowOpsPage(user=user, aws_context=context).render()
+FlowOpsPage(
+    user=user,
+    aws_context=context,
+    correlation_context={"incident": "INC-1234"},
+).render()
 ```
 
 O host continua responsável por autenticação, autorização de entrada na aplicação e pela
@@ -117,7 +127,7 @@ Não coloque access keys, secret keys, session tokens ou segredos em runbooks, p
 exportação ou código. Use IAM roles, profiles ou o mecanismo de credenciais da plataforma em
 que o Streamlit estiver implantado.
 
-Veja `docs/SECURITY.md`, `docs/IAM.md` e `docs/OPERATIONS.md` para segurança e operação em
+Veja `docs/SECURITY.md`, `docs/IAM.md` e `docs/DEPLOYMENT.md` para segurança e operação em
 produção.
 
 ## Produção
@@ -134,6 +144,11 @@ Uma execução real em `production` exige, cumulativamente:
 
 A simulação FlowOps não chama operações mutáveis reais. Ela é uma proteção do orquestrador e
 não deve ser confundida com parâmetros `DryRun` específicos de alguns serviços AWS.
+
+`FAIL_BRANCH` não converte uma falha em rollback transacional: ele encaminha a execução por uma
+aresta `failure`. Se houver uma ação compensatória, configure um node `core.compensation` nesse
+caminho. A Action compensatória passa pelos mesmos controles de autorização, aprovação,
+simulação e retry.
 
 ## Persistência
 
@@ -160,6 +175,22 @@ não altera a fixture persistente.
 
 Os templates DLQ Redrive e DynamoDB Record Correction são destinados ao modo AWS e exigem
 parâmetros explícitos e as políticas correspondentes.
+
+## Observabilidade
+
+Eventos de auditoria são emitidos também como JSON sanitizado. `FLOWOPS_LOG_LEVEL` controla o
+nível do logger. O dashboard deriva de estado durável as métricas:
+
+- `runbook_executions_total`;
+- `runbook_failures_total`;
+- `runbook_duration_seconds_total`;
+- `node_executions_total`;
+- `node_failures_total`;
+- `aws_api_calls_total`.
+
+O host pode encaminhar esses logs/métricas para CloudWatch, OpenTelemetry ou Datadog. Em
+mensagens SQS/SNS, o execution ID e correlation context bounded são propagados como message
+attributes quando a API suporta esse recurso.
 
 ## Qualidade e testes
 
@@ -191,8 +222,11 @@ workspace.
 - `docs/INTEGRATION.md` — integração em Streamlit existente;
 - `docs/SECURITY.md` — credenciais, RBAC, aprovações, secrets e produção;
 - `docs/IAM.md` — least privilege e exemplo de policy;
-- `docs/OPERATIONS.md` — configuração, banco, troubleshooting e implantação;
+- `docs/OPERATIONS.md` — configuração, banco e troubleshooting;
+- `docs/DEVELOPMENT.md` — setup, extensibilidade, migrations e loop de desenvolvimento;
+- `docs/DEPLOYMENT.md` — standalone/embedded, PostgreSQL, AWS, rollback e checklist;
 - `docs/TESTING.md` — estratégia de testes e gates;
+- `CONTRIBUTING.md` — regras de contribuição e revisão de segurança;
 - `docs/PROGRESS.md` — evidências incrementais de implementação;
 - `docs/adr/` — decisões arquiteturais 001–010.
 
