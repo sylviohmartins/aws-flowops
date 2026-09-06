@@ -27,9 +27,7 @@ class FlowOpsGovernedUI(FlowOpsWorkspaceUI):
         if node is None or node.failure_policy != "FAIL_BRANCH":
             return
         candidates = [
-            entry
-            for entry in working.nodes
-            if entry.id != node.id and entry.action != "core.start"
+            entry for entry in working.nodes if entry.id != node.id and entry.action != "core.start"
         ]
         if not candidates:
             st.error("FAIL_BRANCH needs another node to receive the failure path.")
