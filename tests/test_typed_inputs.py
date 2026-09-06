@@ -2,7 +2,7 @@ import json
 
 from streamlit.testing.v1 import AppTest
 
-SCRIPT = '''
+SCRIPT = """
 from types import SimpleNamespace
 import streamlit as st
 from flowops.core.actions import Metadata
@@ -31,7 +31,7 @@ try:
 except FlowOpsError as error:
     st.error(str(error))
 st.json(working.nodes[0].config)
-'''
+"""
 
 
 def test_typed_inputs_preserve_types_mapping_and_reject_invalid_json() -> None:
@@ -50,7 +50,18 @@ def test_typed_inputs_preserve_types_mapping_and_reject_invalid_json() -> None:
     app.run()
     assert not app.exception
     config = json.loads(app.json[0].value)
-    assert config == {"Name": "updated", "Count": 4, "Ratio": 1.5, "Active": False, "Mode": "fast", "Options": {"b": 2}, "Items": [2, 3], "Message": "hello", "Mapped": "{{ params.count }}", "Optional": "default-value"}
+    assert config == {
+        "Name": "updated",
+        "Count": 4,
+        "Ratio": 1.5,
+        "Active": False,
+        "Mode": "fast",
+        "Options": {"b": 2},
+        "Items": [2, 3],
+        "Message": "hello",
+        "Mapped": "{{ params.count }}",
+        "Optional": "default-value",
+    }
     app.text_area[0].set_value("broken-json")
     app.button[0].click()
     app.run()
@@ -64,6 +75,8 @@ def test_typed_inputs_are_readonly_for_viewers_and_accept_empty_schema() -> None
     assert not app.exception
     assert all(field.disabled for field in app.text_input)
     assert app.button[0].disabled
-    app = AppTest.from_string(SCRIPT.replace('input_schema=schema', 'input_schema={"type": "object"}')).run()
+    app = AppTest.from_string(
+        SCRIPT.replace("input_schema=schema", 'input_schema={"type": "object"}')
+    ).run()
     assert not app.exception
     assert not app.button

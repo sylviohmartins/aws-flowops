@@ -127,6 +127,17 @@ O worker reconstrói execuções pendentes a partir da persistência ao iniciar.
 nó evitam repetir etapas já concluídas. Retries automáticos só ocorrem para ações declaradas
 idempotentes e erros transitórios permitidos.
 
+O runtime inicia um dispatcher periódico de PENDING; um lock ocupado não exige um novo clique
+na UI para liberar a fila posteriormente. O descarte do runtime encerra esse dispatcher sem
+cancelar trabalhos já submetidos. Hosts que injetam runtimes duradouros devem chamar `close()`
+no encerramento controlado. Erros temporários de acesso ao banco são registrados sem DSN e o
+dispatcher tenta novamente.
+
+Falhas de provider com `MANUAL_INTERVENTION` geram aprovação contendo o erro, contexto e input
+do passo inteiro. O aprovador deve confirmar a reconciliação externa e registrar o motivo.
+O engine continua sem repetir chamadas nem preencher outputs AWS desconhecidos. Use uma
+leitura seguida de Validation para verificar o resultado operacional da intervenção.
+
 Depois de crash/restart:
 
 1. confirme banco disponível;

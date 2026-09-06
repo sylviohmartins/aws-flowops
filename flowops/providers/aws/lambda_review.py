@@ -89,7 +89,9 @@ def change_preview(
         name = config.get("Name")
         if not isinstance(name, str) or not name:
             raise WorkflowValidationError("Alias review requires Name.")
-        existing: dict[str, Any] = next((alias for alias in aliases if alias.get("Name") == name), {})
+        existing: dict[str, Any] = next(
+            (alias for alias in aliases if alias.get("Name") == name), {}
+        )
         revision = existing.get("RevisionId") if action_id.endswith("update_alias") else None
         proposed["Aliases"] = [alias for alias in aliases if alias.get("Name") != name]
         if not action_id.endswith("delete_alias"):

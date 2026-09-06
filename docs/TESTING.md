@@ -102,6 +102,24 @@ provar a suíte. O caminho recomendado é:
 
 ## Regressão
 
+### Aceitação em navegador real
+
+```bash
+python -m playwright install chromium
+python scripts/browser_acceptance.py
+```
+
+Na CI, `playwright install --with-deps chromium` instala também as dependências do sistema.
+O script sobe Streamlit em `127.0.0.1:8501` com banco demo temporário e interage com o iframe
+React Flow instalado. Criação, configuração, seleção, drag, conexão/desconexão, Data Mapper,
+save/publish, execução, histórico e replay precisam passar. Falhas deixam screenshot, HTML,
+lista de frames e log do servidor em `browser-evidence`, retido por 14 dias. O log da CI contém
+também uma screenshot codificada para diagnóstico em ambientes sem acesso ao download do ZIP.
+
+Regressões da etapa 9 cobrem impacto agregado antes de efeitos, falha parcial S3, reconciliação
+de lote, checkpoint terminal com output, retomada da fila após liberação de lock, typed inputs,
+diff Lambda sanitizado e confirmação de produção ao repetir uma execução.
+
 O piso global de cobertura de 96% evita quedas silenciosas na cobertura agregada. Ele não
 substitui assertions de comportamento: código de segurança, persistência, provider ou engine
 deve receber testes específicos mesmo quando a cobertura global já estiver acima do mínimo.

@@ -93,6 +93,14 @@ entre contas. Se o fluxo precisa de poucos recursos, liste-os nominalmente.
 
 ## Validação
 
+O nome de uma API nem sempre é o nome de sua permissão IAM. O catálogo mapeia explicitamente
+`sns.publish_batch` para `sns:Publish`, e transações DynamoDB para as permissões das operações
+internas (`GetItem`, `PutItem`, `UpdateItem`, `DeleteItem`, `ConditionCheckItem`). Restrinja o
+conjunto às operações usadas pelo runbook; `dynamodb:EnclosingOperation` pode delimitar uso
+transacional. Referências oficiais:
+[permissões SNS](https://docs.aws.amazon.com/sns/latest/dg/sns-access-policy-language-api-permissions-reference.html)
+e [IAM em transações DynamoDB](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/transaction-apis-iam.html).
+
 Antes de habilitar production live:
 
 - execute leituras no contexto esperado;

@@ -40,7 +40,9 @@ class LocalWorker:
             try:
                 self.dispatch_pending()
             except Exception:
-                logging.getLogger("flowops.worker").warning("Pending dispatch failed; retrying when storage is available.")
+                logging.getLogger("flowops.worker").warning(
+                    "Pending dispatch failed; retrying when storage is available."
+                )
 
     def _execute(self, execution_id: str) -> Execution:
         try:

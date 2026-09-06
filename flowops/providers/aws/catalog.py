@@ -73,7 +73,10 @@ IAM_OVERRIDES = {
     "sns.publish_batch": ("sns:Publish",),
     "dynamodb.transact_get_items": ("dynamodb:GetItem",),
     "dynamodb.transact_write_items": (
-        "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:ConditionCheckItem",
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:ConditionCheckItem",
     ),
     "lambda.invoke": ("lambda:InvokeFunction",),
     "s3.list_buckets": ("s3:ListAllMyBuckets",),

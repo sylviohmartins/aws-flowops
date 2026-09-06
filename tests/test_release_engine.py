@@ -219,6 +219,40 @@ class ReleaseEngineTests(unittest.TestCase):
         for key, permissions in expected.items():
             self.assertEqual(AWSAction(SPECS[key], Backend()).metadata.required_permissions, permissions)
 
+    def test_iteration_rate_limit_is_bounded_and_preserves_simulation(self) -> None:
+        f = self.fixture
+        node = Node(id="each", action="core.for_each", config={
+            "items": [1, 2], "template": {"value": "{{ item }}"},
+            "action": "test.action", "interval_seconds": 0.01,
+        })
+        self.assertEqual(f.engine.execute(f.submit(f.book([node]))).status, Status.SUCCESS)
+        self.assertEqual(f.action.calls, 2)
+
+        node.config["interval_seconds"] = 11
+        result = f.engine.execute(f.submit(f.book([node]), token="bad-interval"))
+        self.assertEqual(result.status, Status.FAILED)
+        self.assertIn("Iteration interval", result.error)
+        self.assertEqual(f.action.calls, 2)
+        node.config["interval_seconds"] = 10
+        with patch("flowops.core.engine.time.sleep", side_effect=AssertionError("Simulation cannot wait")):
+            result = f.engine.execute(f.submit(f.book([node]), token="simulation-interval", dry_run=True))
+        self.assertEqual(result.status, Status.SUCCESS)
+        self.assertEqual(f.action.calls, 2)
+
+    def test_failed_iteration_can_be_reconciled_without_repeating_partial_work(self) -> None:
+        f = self.fixture
+        f.action.failures = 1
+        node = Node(id="each", action="core.for_each", failure_policy="MANUAL_INTERVENTION", config={
+            "items": [1, 2], "template": {"value": "{{ item }}"}, "action": "test.action",
+        })
+        execution_id = f.submit(f.book([node]))
+        self.assertEqual(f.engine.execute(execution_id).status, Status.WAITING_APPROVAL)
+        self.assertEqual(f.engine.store.nodes(execution_id)["each__0"]["status"], Status.FAILED)
+        approval = f.engine.store.pending_approvals()[0]
+        f.engine.approve(execution_id, "each", approval["digest"], f.other, approved=True, reason="Whole batch reconciled externally")
+        self.assertEqual(f.engine.execute(execution_id).status, Status.SUCCESS)
+        self.assertEqual(f.action.calls, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -53,7 +53,7 @@ def journey(page: Page, database: Path) -> None:
     navigate(page, "Runbooks")
     page.get_by_label("Name override", exact=True).fill("Browser acceptance")
     page.get_by_role("button", name="Create runbook", exact=True).click()
-    expect(page.get_by_text("Browser acceptance · default", exact=True)).to_be_visible()
+    expect(page.get_by_role("combobox", name="Saved runbooks", exact=True)).to_have_value("Browser acceptance · default")
     navigate(page, "Editor")
     expect(page.get_by_role("heading", name="Visual Runbook Editor", exact=True)).to_be_visible()
     choose(page, "Action", "dynamodb.get_item")

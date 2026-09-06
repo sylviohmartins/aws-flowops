@@ -176,6 +176,30 @@ não altera a fixture persistente.
 Os templates DLQ Redrive e DynamoDB Record Correction são destinados ao modo AWS e exigem
 parâmetros explícitos e as políticas correspondentes.
 
+## Editor e revisão de mudanças
+
+Selecione um nó diretamente no canvas para abrir suas propriedades. **Typed inputs** gera
+campos a partir do schema; **Configuration JSON** mantém acesso a estruturas complexas e
+expressões. O Data Mapper oferece fontes ancestrais e parâmetros com validação de tipos.
+Objetos e arrays podem alimentar mensagens SQS/SNS e payloads Lambda por conversão JSON.
+**Duplicate selected node** copia a configuração sem criar arestas implícitas; conecte o novo
+nó antes de salvar. Novas ações são inseridas com espaço próprio antes de End.
+
+Para `lambda.update_function_configuration`, `update_function_code`, aliases ou publicação de
+versão, use **Load CURRENT and compare PROPOSED**. O painel compara configuração e metadados,
+esconde valores de ambiente/URLs de download e permite **Bind reviewed RevisionId** para os
+updates que suportam esse controle. Código é tratado como artefato ZIP, S3 ou ECR, sem presumir
+edição inline. O botão de revisão só consulta; a mutação continua no engine governado.
+
+Em `core.for_each`, `interval_seconds` entre 0 e 10 limita a cadência entre itens, e o impacto
+total de todos os envelopes é verificado antes da primeira chamada. `core.batch` pode produzir
+os chunks consumidos pela iteração. A simulação não espera esse intervalo.
+
+`MANUAL_INTERVENTION` pausa uma falha do provider para reconciliação externa, com auditoria e
+aprovação. A aprovação não repete a chamada falha nem fabrica seu output; adicione uma leitura
+de confirmação após o ponto reconciliado. O histórico exige novamente confirmação digitada
+para reexecutar uma execução live de produção.
+
 ## Observabilidade
 
 Eventos de auditoria são emitidos também como JSON sanitizado. `FLOWOPS_LOG_LEVEL` controla o
@@ -204,6 +228,8 @@ pytest --cov=flowops --cov-report=term-missing --cov-fail-under=96
 bandit -r flowops -ll
 pip-audit
 python -m build
+python -m playwright install chromium
+python scripts/browser_acceptance.py
 ```
 
 Para executar também o teste PostgreSQL localmente:
@@ -231,7 +257,8 @@ comportamento específicos, independentemente do percentual agregado.
 - `docs/TESTING.md` — estratégia de testes e gates;
 - `CONTRIBUTING.md` — regras de contribuição e revisão de segurança;
 - `docs/PROGRESS.md` — evidências incrementais de implementação;
-- `docs/adr/` — decisões arquiteturais 001–010.
+- `docs/ACCEPTANCE.md` — requisitos do prompt, evidências e limites operacionais;
+- `docs/adr/README.md` — mapa dos temas arquiteturais e decisões 001–012.
 
 ## Limites intencionais
 

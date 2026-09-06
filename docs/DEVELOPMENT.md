@@ -32,7 +32,7 @@ Run the same gates as CI before promotion:
 ruff format --check .
 ruff check .
 mypy flowops
-pytest --cov=flowops --cov-report=term-missing --cov-fail-under=60
+pytest --cov=flowops --cov-report=term-missing --cov-fail-under=96
 bandit -r flowops -ll
 pip-audit
 python -m build
