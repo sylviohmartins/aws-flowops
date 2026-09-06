@@ -6,10 +6,15 @@ from typing import Any
 import pytest
 
 from flowops.core.actions import ActionContext, ActionRegistry, Metadata
-from flowops.domain.errors import AuthorizationError, PolicyViolation, ProviderError, WorkflowValidationError
+from flowops.domain.errors import (
+    AuthorizationError,
+    PolicyViolation,
+    ProviderError,
+    WorkflowValidationError,
+)
 from flowops.domain.models import AWSContext, Identity, Risk
 from flowops.providers.aws.actions import AWSAction, Limits, build_registry, register_generic
-from flowops.providers.aws.catalog import ModelCatalog, Spec
+from flowops.providers.aws.catalog import CURATED, ModelCatalog, Spec
 from flowops.providers.aws.resources import explore
 
 
@@ -145,9 +150,10 @@ def test_correlation_attributes_cover_sqs_batch_sns_and_non_message_services() -
         },
         context,
     )
-    assert batch_result["Entries"][0]["MessageAttributes"]["FlowOpsExecutionId"][
-        "StringValue"
-    ] == "run-1"
+    assert (
+        batch_result["Entries"][0]["MessageAttributes"]["FlowOpsExecutionId"]["StringValue"]
+        == "run-1"
+    )
     assert batch_result["Entries"][1]["MessageAttributes"] == "invalid"
 
     sns = AWSAction(spec("sns", "publish"), Backend())
@@ -213,7 +219,7 @@ def test_validate_preview_execute_and_partial_failure_paths() -> None:
 def test_build_registry_register_generic_and_duplicate_registration() -> None:
     backend = Backend()
     registry = build_registry(backend)
-    assert len(registry.list()) >= 70
+    assert len(registry.list()) == len(CURATED)
 
     class Catalog:
         def generic_spec(self, service: str, operation: str, allowlist: set[str]) -> Spec:
