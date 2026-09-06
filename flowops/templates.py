@@ -219,12 +219,14 @@ def dlq_redrive(owner: str, team: str) -> Runbook:
     )
     book.tags = ["sqs", "dlq", "recovery"]
     book.parameters = {
+        "source_queue_url": Parameter(
+            type="string",
+            description="Source dead-letter queue URL used for read-only inspection",
+        ),
         "source_arn": Parameter(type="string", description="Source dead-letter queue ARN"),
         "destination_arn": Parameter(
             type="string",
-            required=False,
-            default=None,
-            description="Optional destination queue ARN; omit to redrive to original queues",
+            description="Explicit destination queue ARN for the managed redrive task",
         ),
         "max_messages_per_second": Parameter(
             type="integer",
@@ -240,7 +242,7 @@ def dlq_redrive(owner: str, team: str) -> Runbook:
             action="sqs.get_queue_attributes",
             label="Inspect DLQ",
             config={
-                "QueueUrl": "{{ params.source_arn }}",
+                "QueueUrl": "{{ params.source_queue_url }}",
                 "AttributeNames": ["ApproximateNumberOfMessages", "RedrivePolicy"],
             },
             position=(280, 120),
