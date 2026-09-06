@@ -51,9 +51,10 @@ def evaluate_task_run(run: dict[str, Any], *, final: bool = False) -> tuple[str,
             errors.append(f"requirement {req_id} is not terminal: {status}")
         if status == "DONE" and not requirement.get("evidence"):
             errors.append(f"DONE requirement {req_id} needs evidence")
-        if status in {"REJECTED_WITH_REASON", "BLOCKED", "NOT_APPLICABLE"} and not str(
-            requirement.get("reason", "")
-        ).strip():
+        if (
+            status in {"REJECTED_WITH_REASON", "BLOCKED", "NOT_APPLICABLE"}
+            and not str(requirement.get("reason", "")).strip()
+        ):
             errors.append(f"requirement {req_id} status {status} needs a reason")
         blocked = blocked or status == "BLOCKED"
 
