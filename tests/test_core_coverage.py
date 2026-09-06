@@ -341,7 +341,9 @@ def test_validate_graph_basic_guardrails() -> None:
         validate_graph(cycle)
 
 
-def test_observability_logging_duration_and_node_metrics(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+def test_observability_logging_duration_and_node_metrics(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
     logger = logging.getLogger("flowops")
     logger.handlers.clear()
     monkeypatch.setenv("FLOWOPS_LOG_LEVEL", "DEBUG")
