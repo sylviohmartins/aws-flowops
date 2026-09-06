@@ -19,6 +19,7 @@ class FlowOpsPage:
         repository: Repository | None = None,
         runtime: FlowOpsRuntime | None = None,
         generic_allowlist: set[str] | None = None,
+        correlation_context: dict[str, str] | None = None,
     ):
         self.user = user.model_copy(deep=True)
         if permissions is not None:
@@ -29,6 +30,7 @@ class FlowOpsPage:
         )
         self.runtime = runtime
         self.generic_allowlist = set(generic_allowlist or set())
+        self.correlation_context = dict(correlation_context or {})
 
     def _runtime(self) -> FlowOpsRuntime:
         if self.runtime is not None:
@@ -73,7 +75,12 @@ class FlowOpsPage:
         except (RuntimeError, ValueError) as exc:
             st.error(str(exc))
             return
-        FlowOpsUI(self.user, self.aws_context, runtime).render()
+        FlowOpsUI(
+            self.user,
+            self.aws_context,
+            runtime,
+            correlation_context=self.correlation_context,
+        ).render()
 
 
 def render_flowops(
@@ -84,6 +91,7 @@ def render_flowops(
     repository: Repository | None = None,
     runtime: FlowOpsRuntime | None = None,
     generic_allowlist: set[str] | None = None,
+    correlation_context: dict[str, str] | None = None,
 ) -> None:
     FlowOpsPage(
         user,
@@ -92,4 +100,5 @@ def render_flowops(
         repository=repository,
         runtime=runtime,
         generic_allowlist=generic_allowlist,
+        correlation_context=correlation_context,
     ).render()
