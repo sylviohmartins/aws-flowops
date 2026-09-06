@@ -14,7 +14,7 @@ from typing import Any
 from flowops.core.mapping import apply_mapping, defaults_from_schema, flatten_schema, source_fields
 from flowops.core.policies import require
 from flowops.domain.errors import FlowOpsError, WorkflowValidationError
-from flowops.domain.models import Parameter, Runbook, Status, new_id
+from flowops.domain.models import Status, new_id
 from flowops.observability import metric_snapshot
 from flowops.streamlit.canvas import workflow_canvas
 from flowops.streamlit.ui import FlowOpsUI
@@ -31,14 +31,21 @@ STATUS_SYMBOL = {
 
 
 def _compatible(source: str, target: str) -> bool:
-    return source in {target, "any"} or target == "any" or (source == "integer" and target == "number")
+    return (
+        source in {target, "any"}
+        or target == "any"
+        or (source == "integer" and target == "number")
+    )
 
 
 def _duration(started: str | None, finished: str | None) -> float | None:
     if not started or not finished:
         return None
     try:
-        return max(0.0, (datetime.fromisoformat(finished) - datetime.fromisoformat(started)).total_seconds())
+        return max(
+            0.0,
+            (datetime.fromisoformat(finished) - datetime.fromisoformat(started)).total_seconds(),
+        )
     except ValueError:
         return None
 
@@ -310,7 +317,10 @@ class FlowOpsWorkspaceUI(FlowOpsUI):
                 return False
             if user_filter != "ALL" and execution.actor.id != user_filter:
                 return False
-            if environment_filter != "ALL" and execution.aws_context.environment != environment_filter:
+            if (
+                environment_filter != "ALL"
+                and execution.aws_context.environment != environment_filter
+            ):
                 return False
             if account_filter != "ALL" and execution.aws_context.account_id != account_filter:
                 return False
@@ -375,23 +385,20 @@ class FlowOpsWorkspaceUI(FlowOpsUI):
 
         st.subheader("Node executions")
         node_by_id = {node.id: node for node in execution.snapshot.nodes}
-        st.dataframe(
-            [
-                {
-                    "node": node_id,
-                    "action": node_by_id.get(node_id).action if node_id in node_by_id else node_id,
-                    "status": detail.get("status"),
-                    "attempts": detail.get("attempts"),
-                    "duration_s": detail.get("duration_seconds"),
-                    "input": json.dumps(detail.get("input"), ensure_ascii=False)[:500],
-                    "output": json.dumps(detail.get("output"), ensure_ascii=False)[:500],
-                    "error": detail.get("error"),
-                }
-                for node_id, detail in node_details.items()
-            ],
-            width="stretch",
-            hide_index=True,
-        )
+        node_rows: Any = [
+            {
+                "node": node_id,
+                "action": node_by_id[node_id].action if node_id in node_by_id else node_id,
+                "status": detail.get("status"),
+                "attempts": detail.get("attempts"),
+                "duration_s": detail.get("duration_seconds"),
+                "input": json.dumps(detail.get("input"), ensure_ascii=False)[:500],
+                "output": json.dumps(detail.get("output"), ensure_ascii=False)[:500],
+                "error": detail.get("error"),
+            }
+            for node_id, detail in node_details.items()
+        ]
+        st.dataframe(node_rows, width="stretch", hide_index=True)
         with st.expander("Raw node details", expanded=False):
             st.json(node_details, expanded=False)
         columns = st.columns(2)
