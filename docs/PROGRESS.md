@@ -69,3 +69,29 @@ central de sanitização.
 Validação da etapa 5 deve cobrir RBAC, produção, destructive grant, bulk limit, migration do
 preview, persistência/reabertura de aprovação, two-person rule e contexto/resultados de
 auditoria antes do próximo slice.
+
+## Etapa 6 — workspace Streamlit, integração e templates
+
+A camada de apresentação agora oferece Dashboard, catálogo de Runbooks, Editor visual,
+execução, histórico/checkpoints, aprovações, auditoria e Resource Explorer, preservando o
+engine/domínio fora do Streamlit. Alterações duráveis permanecem dependentes de submit
+explícito. O editor mantém working copy em sessão, valida o DAG antes de persistir, expõe
+parâmetros, configuração por nó, política de falha e retry, e impede publicação com alterações
+não salvas.
+
+A execução diferencia explicitamente simulação FlowOps de `DryRun` nativo de serviços AWS.
+Execução real em produção exige confirmação digitada `PRODUCTION` e a conta AWS de 12 dígitos,
+além das políticas/RBAC/aprovações do engine. O cancelamento da UI passa pelo `Engine.cancel`,
+sem acesso direto ao store. Importações não podem ampliar silenciosamente o escopo de equipe
+do usuário.
+
+Export/import determinístico em YAML/JSON, runtime compartilhável entre standalone e host,
+backend demo com estado de simulação isolado por execução e templates reutilizáveis foram
+adicionados. Os templates incluem Blank, Fix Stuck Payment, Lambda Invoke, Replay Event,
+DLQ Redrive e DynamoDB Record Correction. O DLQ Redrive separa URL de inspeção do ARN de
+origem e usa destino explícito para produzir uma chamada SDK válida.
+
+Evidência da branch no SHA `7508a23`: workflow Quality `34009887428` integralmente verde;
+44 arquivos já formatados, Ruff sem violações, mypy sem issues em 30 source files, 37 testes
+passando em 6,97 s, coverage total de 63%, Bandit sem findings, `pip-audit` sem vulnerabilidades
+conhecidas nas dependências auditáveis e build de sdist/wheel concluído com sucesso.
