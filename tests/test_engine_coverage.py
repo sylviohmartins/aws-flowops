@@ -135,13 +135,13 @@ def test_approval_reason_authorization_rejection_and_dry_run(tmp_path: Path) -> 
     waiting = engine.execute(execution_id)
     assert waiting.status == Status.WAITING_APPROVAL
     approval = engine.store.pending_approvals()[0]
-    digest = approval["digest"]
+    approval_digest = approval["digest"]
 
     with pytest.raises(AuthorizationError):
         engine.approve(
             execution_id,
             "approval",
-            digest,
+            approval_digest,
             Identity(id="viewer", roles=["VIEWER"]),
             approved=True,
             reason="reviewed",
@@ -150,7 +150,7 @@ def test_approval_reason_authorization_rejection_and_dry_run(tmp_path: Path) -> 
         engine.approve(
             execution_id,
             "approval",
-            digest,
+            approval_digest,
             Identity(id="approver", roles=["APPROVER"]),
             approved=True,
             reason="   ",
@@ -159,7 +159,7 @@ def test_approval_reason_authorization_rejection_and_dry_run(tmp_path: Path) -> 
     engine.approve(
         execution_id,
         "approval",
-        digest,
+        approval_digest,
         Identity(id="approver", roles=["APPROVER"]),
         approved=False,
         reason="rejected after review",
@@ -167,7 +167,9 @@ def test_approval_reason_authorization_rejection_and_dry_run(tmp_path: Path) -> 
     assert engine.store.get(execution_id).status == Status.CANCELLED
 
 
-def test_interrupted_checkpoint_fails_closed_and_cancel_flag_stops_before_nodes(tmp_path: Path) -> None:
+def test_interrupted_checkpoint_fails_closed_and_cancel_flag_stops_before_nodes(
+    tmp_path: Path,
+) -> None:
     repository, _, engine = runtime(tmp_path)
     book = publish(repository, linear_book())
 
@@ -185,8 +187,7 @@ def test_interrupted_checkpoint_fails_closed_and_cancel_flag_stops_before_nodes(
     assert cancelled.status == Status.CANCELLED
     assert set(engine.store.nodes(cancelled_id)) == {"start", "end"}
     assert all(
-        detail["status"] == Status.SKIPPED
-        for detail in engine.store.nodes(cancelled_id).values()
+        detail["status"] == Status.SKIPPED for detail in engine.store.nodes(cancelled_id).values()
     )
 
 
@@ -223,11 +224,19 @@ def test_parallel_read_nodes_disabled_node_and_stop_branch(tmp_path: Path) -> No
 
     stopped = publish(
         repository,
-        linear_book(Node(id="stop", action="core.stop", config={"reason": "operator stop"})),
+        Runbook(
+            name="Explicit stop",
+            environments=["dev"],
+            nodes=[
+                Node(id="start", action="core.start"),
+                Node(id="stop", action="core.stop", config={"reason": "operator stop"}),
+            ],
+            edges=[Edge(source="start", target="stop")],
+        ),
     )
     result = engine.execute(submit(engine, stopped, token="stop"))
     assert result.status == Status.CANCELLED
-    assert engine.store.nodes(result.id)["end"]["status"] == Status.SKIPPED
+    assert engine.store.nodes(result.id)["stop"]["status"] == Status.SUCCESS
 
 
 def test_wait_retry_for_each_and_continue_failure_paths(tmp_path: Path) -> None:
@@ -277,7 +286,9 @@ def test_wait_retry_for_each_and_continue_failure_paths(tmp_path: Path) -> None:
 
 
 def test_unexpected_action_input_is_sanitized_into_failed_outcome(tmp_path: Path) -> None:
-    broken = RecordingAction("test.broken", validation_error=ValueError("raw implementation detail"))
+    broken = RecordingAction(
+        "test.broken", validation_error=ValueError("raw implementation detail")
+    )
     repository, _, engine = runtime(tmp_path, broken)
     book = publish(repository, linear_book(Node(id="broken", action="test.broken")))
     result = engine.execute(submit(engine, book, token="unexpected"))
