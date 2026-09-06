@@ -1,5 +1,6 @@
 """Local asynchronous worker facade with durable claims, independent of Streamlit."""
 
+import logging
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from threading import Event, Lock, Thread
@@ -29,12 +30,17 @@ class LocalWorker:
     def start(self) -> None:
         """Keep durable queued executions moving when another run releases a scope lock."""
         if self.dispatcher is None:
-            self.dispatcher = Thread(target=self._dispatch_loop, name="flowops-dispatch", daemon=True)
+            self.dispatcher = Thread(
+                target=self._dispatch_loop, name="flowops-dispatch", daemon=True
+            )
             self.dispatcher.start()
 
     def _dispatch_loop(self) -> None:
         while not self.stopping.wait(0.5):
-            self.dispatch_pending()
+            try:
+                self.dispatch_pending()
+            except Exception:
+                logging.getLogger("flowops.worker").warning("Pending dispatch failed; retrying when storage is available.")
 
     def _execute(self, execution_id: str) -> Execution:
         try:
@@ -56,8 +62,8 @@ class LocalWorker:
             if execution.status == Status.PENDING:
                 self.enqueue(execution.id)
 
-    def close(self) -> None:
+    def close(self, *, wait: bool = True) -> None:
         self.stopping.set()
-        if self.dispatcher is not None:
+        if wait and self.dispatcher is not None:
             self.dispatcher.join()
-        self.pool.shutdown(wait=True, cancel_futures=False)
+        self.pool.shutdown(wait=wait, cancel_futures=False)

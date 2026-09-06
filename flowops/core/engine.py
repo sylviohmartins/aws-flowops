@@ -356,10 +356,17 @@ class Engine:
                     affected += affected_records(action, item)
                 needs_approval = self.policy.action(execution, action.metadata, affected)
                 if needs_approval:
-                    gate = self._approval(execution, node, config, {
-                        "action": action.metadata.id, "affected": affected,
-                        "risk": action.metadata.risk.value, "items": mapped["items"],
-                    })
+                    gate = self._approval(
+                        execution,
+                        node,
+                        config,
+                        {
+                            "action": action.metadata.id,
+                            "affected": affected,
+                            "risk": action.metadata.risk.value,
+                            "items": mapped["items"],
+                        },
+                    )
                     if gate.status != Status.SUCCESS:
                         return gate
                 results = []
@@ -370,14 +377,18 @@ class Engine:
                         config=item,
                         retry=node.retry,
                     )
-                    prior = self.store.nodes(execution.id).get(child.id)
-                    if prior and prior["status"] == Status.SUCCESS:
-                        results.append(prior["output"])
+                    child_prior = self.store.nodes(execution.id).get(child.id)
+                    if child_prior and child_prior["status"] == Status.SUCCESS:
+                        results.append(child_prior["output"])
                         continue
                     try:
-                        item_result = self._action(execution, child, item, detail, approval_checked=True)
+                        item_result = self._action(
+                            execution, child, item, detail, approval_checked=True
+                        )
                     except FlowOpsError as exc:
-                        self.store.checkpoint(execution, child.id, Status.FAILED, {"error": str(exc), "input": item})
+                        self.store.checkpoint(
+                            execution, child.id, Status.FAILED, {"error": str(exc), "input": item}
+                        )
                         raise
                     self._record(execution, child, item_result)
                     if item_result.status != Status.SUCCESS:
@@ -407,7 +418,11 @@ class Engine:
             if isinstance(exc, ProviderError):
                 detail["provider_details"] = bounded_output(exc.details)
             self.store.checkpoint(execution, node.id, Status.FAILED, detail)
-            if node.failure_policy == "MANUAL_INTERVENTION" and isinstance(exc, ProviderError) and not execution.dry_run:
+            if (
+                node.failure_policy == "MANUAL_INTERVENTION"
+                and isinstance(exc, ProviderError)
+                and not execution.dry_run
+            ):
                 detail["intervention"] = True
                 return self._intervention(execution, node, detail)
             if node.failure_policy == "CONTINUE":
@@ -426,12 +441,17 @@ class Engine:
 
     def _intervention(self, execution: Execution, node: Node, detail: dict[str, Any]) -> Outcome:
         """A reviewer attests external reconciliation; the failed call is never replayed."""
-        gate = self._approval(execution, node, detail.get("input", {}), {
-            "manual_intervention": True,
-            "error": detail.get("error"),
-            "provider_details": detail.get("provider_details"),
-            "instruction": "Approve only after external reconciliation. Continue without replaying the failed action; no AWS result is fabricated.",
-        })
+        gate = self._approval(
+            execution,
+            node,
+            detail.get("input", {}),
+            {
+                "manual_intervention": True,
+                "error": detail.get("error"),
+                "provider_details": detail.get("provider_details"),
+                "instruction": "Approve only after external reconciliation. Continue without replaying the failed action; no AWS result is fabricated.",
+            },
+        )
         gate.output = {"manual_intervention": True, "reconciled": gate.status == Status.SUCCESS}
         gate.error = detail.get("error")
         detail.update(output=gate.output, branch=gate.branch)
@@ -464,8 +484,13 @@ class Engine:
         )
 
     def _action(
-        self, execution: Execution, node: Node, config: dict[str, Any], detail: dict[str, Any],
-        *, approval_checked: bool = False,
+        self,
+        execution: Execution,
+        node: Node,
+        config: dict[str, Any],
+        detail: dict[str, Any],
+        *,
+        approval_checked: bool = False,
     ) -> Outcome:
         action = self.registry.get(node.action)
         action.validate(config)

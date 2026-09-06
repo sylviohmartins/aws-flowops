@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
@@ -29,7 +30,7 @@ def choose(page: Page, label: str, value: str | re.Pattern[str]) -> None:
 
 
 def navigate(page: Page, label: str) -> None:
-    page.get_by_role("radio", name=label, exact=True).check()
+    page.get_by_test_id("stSidebar").get_by_text(label, exact=True).click()
 
 
 def wait_server(process: subprocess.Popen[bytes]) -> None:
@@ -64,7 +65,9 @@ def journey(page: Page, database: Path) -> None:
     assert get_id
     get_node.click()
     expect(page.get_by_label("Configuration JSON", exact=True)).to_have_value("{}")
-    page.get_by_label("Configuration JSON", exact=True).fill(json.dumps({"TableName": "payments", "Key": {"paymentId": {"S": "12345"}}}))
+    page.get_by_label("Configuration JSON", exact=True).fill(
+        json.dumps({"TableName": "payments", "Key": {"paymentId": {"S": "12345"}}})
+    )
     page.get_by_role("button", name="Apply node properties", exact=True).click()
     choose(page, "Action", "sqs.send_message")
     page.get_by_role("button", name="Insert before End", exact=True).click()
@@ -73,12 +76,21 @@ def journey(page: Page, database: Path) -> None:
     send_id = send_node.get_attribute("data-id")
     assert send_id
     send_node.click()
-    page.get_by_label("Configuration JSON", exact=True).fill(json.dumps({"QueueUrl": "https://sqs.sa-east-1.amazonaws.com/000000000000/payments-events", "MessageBody": "initial"}))
+    page.get_by_label("Configuration JSON", exact=True).fill(
+        json.dumps(
+            {
+                "QueueUrl": "https://sqs.sa-east-1.amazonaws.com/000000000000/payments-events",
+                "MessageBody": "initial",
+            }
+        )
+    )
     page.get_by_role("button", name="Apply node properties", exact=True).click()
     choose(page, "Target field", "MessageBody")
     choose(page, "Source", re.compile(rf"nodes\.{get_id}\.output\.Item ·"))
     page.get_by_role("button", name="Apply mapping", exact=True).click()
-    expect(page.get_by_label("Configuration JSON", exact=True)).to_have_value(re.compile(rf"nodes\.{get_id}\.output\.Item"))
+    expect(page.get_by_label("Configuration JSON", exact=True)).to_have_value(
+        re.compile(rf"nodes\.{get_id}\.output\.Item")
+    )
 
     # Exercise the installed canvas rather than synthesizing component payloads.
     node_before = send_node.get_attribute("style")
@@ -110,7 +122,9 @@ def journey(page: Page, database: Path) -> None:
     send = next(node for node in book.nodes if node.id == send_id)
     assert send.config["MessageBody"] == "{{ " + f"nodes.{get_id}.output.Item" + " }}"
     assert send.position[1] != 180
-    page.locator('iframe[title="streamlit_flow.streamlit_flow"]').screenshot(path=str(ARTIFACTS / "canvas.png"))
+    page.locator('iframe[title="streamlit_flow.streamlit_flow"]').screenshot(
+        path=str(ARTIFACTS / "canvas.png")
+    )
     page.get_by_role("button", name="Publish version", exact=True).click()
     navigate(page, "Execute")
     page.get_by_role("button", name="Submit execution", exact=True).click()
@@ -130,15 +144,59 @@ def journey(page: Page, database: Path) -> None:
     expect(page.get_by_role("combobox", name="Execution detail", exact=True)).to_be_visible()
     assert len(store.history()) == 2
     page.screenshot(path=str(ARTIFACTS / "history.png"), full_page=True)
-    (ARTIFACTS / "result.json").write_text(json.dumps({"status": "PASS", "created": book.id, "version": history[0].runbook_version, "execution": history[0].id, "nodes": len(book.nodes), "checks": ["startup", "create", "configure", "canvas selection", "drag", "connect", "disconnect", "mapper", "validate", "save", "publish", "execute", "history", "rerun"]}, indent=2))
+    (ARTIFACTS / "result.json").write_text(
+        json.dumps(
+            {
+                "status": "PASS",
+                "created": book.id,
+                "version": history[0].runbook_version,
+                "execution": history[0].id,
+                "nodes": len(book.nodes),
+                "checks": [
+                    "startup",
+                    "create",
+                    "configure",
+                    "canvas selection",
+                    "drag",
+                    "connect",
+                    "disconnect",
+                    "mapper",
+                    "validate",
+                    "save",
+                    "publish",
+                    "execute",
+                    "history",
+                    "rerun",
+                ],
+            },
+            indent=2,
+        )
+    )
 
 
 def main() -> None:
     ARTIFACTS.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory() as directory, (ARTIFACTS / "server.log").open("wb") as log:
         database = Path(directory) / "browser.db"
-        env = os.environ | {"FLOWOPS_DATABASE": str(database), "STREAMLIT_BROWSER_GATHER_USAGE_STATS": "false"}
-        server = subprocess.Popen([sys.executable, "-m", "streamlit", "run", str(ROOT / "standalone_app.py"), "--server.headless=true", "--server.port=8501"], cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT)
+        env = os.environ | {
+            "FLOWOPS_DATABASE": str(database),
+            "STREAMLIT_BROWSER_GATHER_USAGE_STATS": "false",
+        }
+        server = subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                "streamlit",
+                "run",
+                str(ROOT / "standalone_app.py"),
+                "--server.headless=true",
+                "--server.port=8501",
+            ],
+            cwd=ROOT,
+            env=env,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+        )
         try:
             wait_server(server)
             with sync_playwright() as browser_tool:
@@ -153,7 +211,10 @@ def main() -> None:
                     print("Browser acceptance PASS: " + (ARTIFACTS / "result.json").read_text())
                 finally:
                     page.screenshot(path=str(ARTIFACTS / "last-page.png"), full_page=True)
-                    (ARTIFACTS / "frames.json").write_text(json.dumps([frame.url for frame in page.frames]))
+                    print("FLOWOPS_BROWSER_SCREENSHOT=" + base64.b64encode((ARTIFACTS / "last-page.png").read_bytes()).decode())
+                    (ARTIFACTS / "frames.json").write_text(
+                        json.dumps([frame.url for frame in page.frames])
+                    )
                     (ARTIFACTS / "page.html").write_text(page.content())
                     browser.close()
         finally:

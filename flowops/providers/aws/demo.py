@@ -219,11 +219,23 @@ class DemoBackend:
                 "Timeout": 3,
                 "CodeSha256": "demo-code-hash",
             }
-            return configuration if key.endswith("get_function_configuration") else {"Configuration": configuration, "Code": {"RepositoryType": "S3"}}
+            return (
+                configuration
+                if key.endswith("get_function_configuration")
+                else {"Configuration": configuration, "Code": {"RepositoryType": "S3"}}
+            )
         if key == "lambda.list_aliases":
-            return {"Aliases": [{"Name": "live", "FunctionVersion": "1", "RevisionId": "demo-alias-revision"}]}
+            return {
+                "Aliases": [
+                    {"Name": "live", "FunctionVersion": "1", "RevisionId": "demo-alias-revision"}
+                ]
+            }
         if key == "lambda.list_versions_by_function":
-            return {"Versions": [{"FunctionName": p["FunctionName"], "Version": "1", "Runtime": "python3.12"}]}
+            return {
+                "Versions": [
+                    {"FunctionName": p["FunctionName"], "Version": "1", "Runtime": "python3.12"}
+                ]
+            }
         if key == "lambda.invoke":
             return {
                 "StatusCode": 200,

@@ -38,10 +38,13 @@ def validate_graph(book: Runbook, registry: ActionRegistry | None = None) -> lis
         raise WorkflowValidationError("Node IDs must be unique.")
     iteration_prefixes = [node.id[:48] for node in book.nodes if node.action == "core.for_each"]
     if len(iteration_prefixes) != len(set(iteration_prefixes)) or any(
-        node_id.startswith(f"{prefix}__") and node_id[len(prefix) + 2:].isdigit()
-        for prefix in iteration_prefixes for node_id in nodes
+        node_id.startswith(f"{prefix}__") and node_id[len(prefix) + 2 :].isdigit()
+        for prefix in iteration_prefixes
+        for node_id in nodes
     ):
-        raise WorkflowValidationError("Iteration checkpoint IDs must not overlap graph nodes or other iterations.")
+        raise WorkflowValidationError(
+            "Iteration checkpoint IDs must not overlap graph nodes or other iterations."
+        )
     starts = [n.id for n in book.nodes if n.action == "core.start"]
     ends = [n.id for n in book.nodes if n.action in {"core.end", "core.stop"}]
     if len(starts) != 1 or not ends:

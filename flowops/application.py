@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
+from weakref import finalize
 
 from flowops.core.actions import ActionRegistry
 from flowops.core.engine import Engine
@@ -26,6 +27,11 @@ class FlowOpsRuntime:
     engine: Engine
     worker: LocalWorker
     backend: Any
+
+    def __post_init__(self) -> None:
+        # A discarded UI session releases its dispatcher. Already submitted work
+        # completes, and advanced hosts can still close their runtime explicitly.
+        finalize(self, self.worker.close, wait=False)
 
     @classmethod
     def demo(cls, repository: Repository) -> FlowOpsRuntime:

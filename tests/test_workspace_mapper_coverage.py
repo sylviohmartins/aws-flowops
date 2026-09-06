@@ -128,6 +128,7 @@ def build_ui(
 ) -> tuple[FlowOpsWorkspaceUI, Runbook, int]:
     monkeypatch.setitem(sys.modules, "streamlit", fake)
     monkeypatch.setattr(FlowOpsUI, "_editor", lambda self: None)
+    monkeypatch.setattr("flowops.streamlit.workspace.render_typed_inputs", lambda *args: None)
     repo = Repository(tmp_path / "mapper.db")
     book = Runbook(
         name="Mapper",
@@ -154,6 +155,7 @@ def test_mapper_returns_for_missing_selection_draft_and_core_node(
     fake = FakeStreamlit()
     monkeypatch.setitem(sys.modules, "streamlit", fake)
     monkeypatch.setattr(FlowOpsUI, "_editor", lambda self: None)
+    monkeypatch.setattr("flowops.streamlit.workspace.render_typed_inputs", lambda *args: None)
     ui = FlowOpsWorkspaceUI.__new__(FlowOpsWorkspaceUI)
     ui.repository = SimpleNamespace(get_draft=lambda selected: (_ for _ in ()).throw(Exception()))
     ui._editor()

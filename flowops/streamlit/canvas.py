@@ -18,7 +18,9 @@ def apply_canvas(
 ) -> tuple[Runbook, str | None]:
     if readonly:
         selected = payload.get("selected_id")
-        return book.model_copy(deep=True), selected if selected in {n.id for n in book.nodes} else None
+        return book.model_copy(deep=True), selected if selected in {
+            n.id for n in book.nodes
+        } else None
     result = book.model_copy(deep=True)
     known = {node.id: node for node in result.nodes}
     received = payload.get("nodes", [])

@@ -422,7 +422,9 @@ class FlowOpsUI:
         st.session_state[canvas_selection_key] = canvas_selected
         if st.session_state.get(selection_key) not in {node.id for node in working.nodes}:
             st.session_state.pop(selection_key, None)
-        st.caption("Drag handles to connect nodes. Select an edge to edit its branch or disconnect it. Duplicated nodes must be connected before saving.")
+        st.caption(
+            "Drag handles to connect nodes. Select an edge to edit its branch or disconnect it. Duplicated nodes must be connected before saving."
+        )
 
         if working.nodes:
             selected_node_id = st.selectbox(
@@ -493,7 +495,9 @@ class FlowOpsUI:
                 self._store_working(working, revision)
                 st.rerun()
             if editable and node.action not in {"core.start", "core.end"}:
-                if st.button("Duplicate selected node", key=f"flowops:duplicate:{book.id}:{node.id}"):
+                if st.button(
+                    "Duplicate selected node", key=f"flowops:duplicate:{book.id}:{node.id}"
+                ):
                     working, copied_id = duplicate_node(working, node.id)
                     self._store_working(working, revision)
                     st.session_state[f"flowops:pending-node:{book.id}"] = copied_id

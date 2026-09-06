@@ -166,13 +166,22 @@ class AWSAction:
         """Count AWS batch envelopes before policy, including nested DynamoDB keys."""
         parameters, _ = self.prepare(config)
         if "RequestItems" in parameters:
-            return max(1, sum(
-                len(value.get("Keys", [])) if isinstance(value, dict) else len(value)
-                for value in parameters["RequestItems"].values()
-            ))
+            return max(
+                1,
+                sum(
+                    len(value.get("Keys", [])) if isinstance(value, dict) else len(value)
+                    for value in parameters["RequestItems"].values()
+                ),
+            )
         if "Delete" in parameters:
             return max(1, len(parameters["Delete"].get("Objects", [])))
-        for key in ("Entries", "TransactItems", "Statements", "TransactStatements", "PublishBatchRequestEntries"):
+        for key in (
+            "Entries",
+            "TransactItems",
+            "Statements",
+            "TransactStatements",
+            "PublishBatchRequestEntries",
+        ):
             if key in parameters:
                 return max(1, len(parameters[key]))
         return 1
