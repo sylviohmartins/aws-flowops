@@ -1,6 +1,8 @@
-"""Explicit, durable demo backend. Unsupported calls are errors, never fabricated successes."""
+"""Explicit durable demo backend with execution-isolated FlowOps simulations."""
 
+import copy
 import json
+import threading
 from typing import Any
 
 from flowops.core.actions import ActionContext
@@ -35,6 +37,8 @@ class DemoBackend:
 
     def __init__(self, repository: Repository):
         self.repository = repository
+        self.lock = threading.RLock()
+        self.simulations: dict[str, dict[str, Any]] = {}
         with repository.transaction() as db:
             exists = db.execute("SELECT id FROM resource_bindings WHERE id='demo-state'").fetchone()
             if exists is None:
@@ -54,12 +58,61 @@ class DemoBackend:
             "objects": {},
         }
 
+    def _persisted_state(self) -> dict[str, Any]:
+        with self.repository.transaction() as db:
+            row = db.execute("SELECT body FROM resource_bindings WHERE id='demo-state'").fetchone()
+        return json.loads(row[0])
+
+    def _simulation(self, execution_id: str) -> dict[str, Any]:
+        with self.lock:
+            if execution_id not in self.simulations:
+                if len(self.simulations) >= 100:
+                    self.simulations.pop(next(iter(self.simulations)))
+                self.simulations[execution_id] = copy.deepcopy(self._persisted_state())
+            return self.simulations[execution_id]
+
     def reset(self) -> None:
         with self.repository.transaction() as db:
             db.execute(
                 "UPDATE resource_bindings SET body=? WHERE id='demo-state'",
                 (canonical(self.initial_state()),),
             )
+        with self.lock:
+            self.simulations.clear()
+
+    @staticmethod
+    def _response(result: dict[str, Any], context: ActionContext) -> dict[str, Any]:
+        return result | {
+            "ResponseMetadata": {
+                "RequestId": f"demo-{context.execution_id}-{context.node_id}",
+                "HTTPStatusCode": 200,
+            },
+            "_demo": True,
+        }
+
+    def _check(self, service: str, operation: str, context: ActionContext) -> str:
+        if context.aws.mode != "demo":
+            raise ProviderError("Demo backend cannot execute a live AWS context")
+        key = f"{service}.{operation}"
+        if key not in SUPPORTED:
+            raise ProviderError(
+                f"DemoUnsupportedOperation: {key}; select a configured real AWS context"
+            )
+        return key
+
+    def preview(
+        self,
+        service: str,
+        operation: str,
+        parameters: dict[str, Any],
+        context: ActionContext,
+        limits: Limits,
+    ) -> Any:
+        key = self._check(service, operation, context)
+        with self.lock:
+            state = self._simulation(context.execution_id)
+            result = self._call(key, parameters, state, context, limits)
+            return self._response(result, context)
 
     def invoke(
         self,
@@ -69,13 +122,11 @@ class DemoBackend:
         context: ActionContext,
         limits: Limits,
     ) -> Any:
-        if context.aws.mode != "demo":
-            raise ProviderError("Demo backend cannot execute a live AWS context")
-        key = f"{service}.{operation}"
-        if key not in SUPPORTED:
-            raise ProviderError(
-                f"DemoUnsupportedOperation: {key}; select a configured real AWS context"
-            )
+        key = self._check(service, operation, context)
+        if context.dry_run:
+            with self.lock:
+                state = self._simulation(context.execution_id)
+                return self._response(self._call(key, parameters, state, context, limits), context)
         with self.repository.transaction() as db:
             state = json.loads(
                 db.execute("SELECT body FROM resource_bindings WHERE id='demo-state'").fetchone()[0]
@@ -84,13 +135,7 @@ class DemoBackend:
             db.execute(
                 "UPDATE resource_bindings SET body=? WHERE id='demo-state'", (canonical(state),)
             )
-        return result | {
-            "ResponseMetadata": {
-                "RequestId": f"demo-{context.execution_id}-{context.node_id}",
-                "HTTPStatusCode": 200,
-            },
-            "_demo": True,
-        }
+        return self._response(result, context)
 
     def _call(
         self,
@@ -119,7 +164,7 @@ class DemoBackend:
                 items = list(state["payments"].values())
                 if key == "dynamodb.query":
                     target = p.get("ExpressionAttributeValues", {}).get(":paymentId", {}).get("S")
-                    items = [i for i in items if i["paymentId"]["S"] == target]
+                    items = [item for item in items if item["paymentId"]["S"] == target]
                 return {
                     "Items": items[: min(p.get("Limit", limits.max_items), limits.max_items)],
                     "Count": len(items),
@@ -178,7 +223,7 @@ class DemoBackend:
         if key == "s3.list_buckets":
             return {"Buckets": [{"Name": "flowops-demo"}]}
         if key == "s3.list_objects_v2":
-            return {"Contents": [{"Key": k} for k in state["objects"]]}
+            return {"Contents": [{"Key": object_key} for object_key in state["objects"]]}
         if key == "s3.put_object":
             state["objects"][p["Key"]] = p.get("Body", "")
             return {"ETag": "demo-etag"}
