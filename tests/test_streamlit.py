@@ -12,7 +12,8 @@ class StreamlitSmokeTests(unittest.TestCase):
             previous = os.environ.get("FLOWOPS_DATABASE")
             os.environ["FLOWOPS_DATABASE"] = str(Path(temp) / "ui.db")
             try:
-                app = AppTest.from_file("standalone_app.py").run(timeout=20)
+                script = Path(__file__).resolve().parents[1] / "standalone_app.py"
+                app = AppTest.from_file(script).run(timeout=20)
                 self.assertEqual(list(app.exception), [])
                 self.assertEqual(app.title[0].value, "AWS FlowOps Studio")
                 self.assertGreaterEqual(len(app.metric), 5)
