@@ -148,9 +148,7 @@ def test_flatten_schema_handles_metadata_bad_children_and_depth() -> None:
     assert flatten_schema(schema) == [
         SchemaField("Good", "string", True, "documented", "x", ("x", "y"))
     ]
-    assert flatten_schema({"type": "array"}, prefix="Items") == [
-        SchemaField("Items", "array")
-    ]
+    assert flatten_schema({"type": "array"}, prefix="Items") == [SchemaField("Items", "array")]
     assert flatten_schema({"type": "string"}, depth=9) == []
 
 
@@ -191,13 +189,14 @@ def test_schema_at_arrays_and_malformed_shapes() -> None:
     assert _schema_at(schema, ["Items", "Id"]) == {"type": "string"}
     assert _schema_at({"type": "array", "items": "bad"}, ["Id"]) is None
     assert _schema_at({"type": "object", "properties": []}, ["Id"]) is None
-    assert _schema_at(
-        {"type": "object", "properties": {"Id": "bad"}}, ["Id"]
-    ) is None
+    assert _schema_at({"type": "object", "properties": {"Id": "bad"}}, ["Id"]) is None
 
 
 def test_source_fields_include_context_core_opaque_and_typed_ancestors() -> None:
-    fields = {field.path: field.type for field in source_fields(mapper_book(), "target", mapper_registry())}
+    fields = {
+        field.path: field.type
+        for field in source_fields(mapper_book(), "target", mapper_registry())
+    }
     assert fields["params.name"] == "string"
     assert fields["params.count"] == "integer"
     assert fields["context.execution_id"] == "string"
@@ -257,7 +256,9 @@ def test_validate_mapping_types_covers_dict_list_unknown_and_core_paths() -> Non
     ancestors = {"start", "logic", "source", "opaque"}
     target = next(node for node in book.nodes if node.id == "target")
 
-    validate_mapping_types(book, next(node for node in book.nodes if node.id == "logic"), ancestors, registry)
+    validate_mapping_types(
+        book, next(node for node in book.nodes if node.id == "logic"), ancestors, registry
+    )
 
     target.config = {
         "Name": "{{ params.name }}",
