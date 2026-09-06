@@ -13,7 +13,16 @@ from flowops.core.graph import bind_parameters, validate_graph
 from flowops.core.policies import PolicyEngine, permissions, require
 from flowops.core.serialization import export_runbook, import_runbook
 from flowops.domain.errors import AuthorizationError, PolicyViolation, WorkflowValidationError
-from flowops.domain.models import AWSContext, Edge, Execution, Identity, Node, Parameter, Risk, Runbook
+from flowops.domain.models import (
+    AWSContext,
+    Edge,
+    Execution,
+    Identity,
+    Node,
+    Parameter,
+    Risk,
+    Runbook,
+)
 from flowops.persistence.repository import Repository
 
 
@@ -55,6 +64,7 @@ def registry() -> ActionRegistry:
                 "write",
                 "write",
                 risk=Risk.MEDIUM,
+                read_only=False,
             )
         )
     )
@@ -206,7 +216,7 @@ def test_graph_switch_failure_expression_and_connectivity_guards() -> None:
             Node(id="middle", action="core.parallel"),
             Node(id="end", action="core.end"),
         ],
-        edges=[Edge(source="start", target="middle")],
+        edges=[Edge(source="start", target="middle"), Edge(source="start", target="end")],
     )
     with pytest.raises(WorkflowValidationError, match="Connect middle"):
         validate_graph(dead_end)
@@ -281,7 +291,13 @@ def test_serialization_rejects_invalid_formats_sizes_shapes_and_schema() -> None
         import_runbook("- one\n- two\n", owner="u", format="yaml")
     with pytest.raises(WorkflowValidationError, match="supported schema"):
         import_runbook(
-            json.dumps({"name": "bad", "nodes": [{"action": "core.start", "node_version": 1}], "edges": "bad"}),
+            json.dumps(
+                {
+                    "name": "bad",
+                    "nodes": [{"action": "core.start", "node_version": 1}],
+                    "edges": "bad",
+                }
+            ),
             owner="u",
             format="json",
         )
@@ -320,10 +336,19 @@ def test_permissions_require_and_policy_fail_closed_paths() -> None:
 
     read = Metadata("fake.read", "fake", "fake", "read", "read", read_only=True)
     assert engine.action(execution(), read) is False
-    assert engine.action(execution(dry_run=True), Metadata("w", "fake", "f", "w", "w")) is False
-    assert engine.action(execution(), Metadata("w", "fake", "f", "w", "w"), affected=2) is True
+    write = Metadata(
+        "w",
+        "fake",
+        "f",
+        "w",
+        "w",
+        risk=Risk.MEDIUM,
+        read_only=False,
+    )
+    assert engine.action(execution(dry_run=True), write) is False
+    assert engine.action(execution(), write, affected=2) is True
     with pytest.raises(PolicyViolation, match="Affected-record limit"):
-        engine.action(execution(), Metadata("w", "fake", "f", "w", "w"), affected=3)
+        engine.action(execution(), write, affected=3)
 
 
 def test_runtime_rejects_untrusted_contexts_bad_allowlist_and_wires_release() -> None:
@@ -344,5 +369,7 @@ def test_runtime_rejects_untrusted_contexts_bad_allowlist_and_wires_release() ->
 
         runtime = FlowOpsRuntime.from_registry(repo, ActionRegistry(), backend=Backend())
         runtime.close()
-        runtime_without_release = FlowOpsRuntime.from_registry(repo, ActionRegistry(), backend=object())
+        runtime_without_release = FlowOpsRuntime.from_registry(
+            repo, ActionRegistry(), backend=object()
+        )
         runtime_without_release.close()
