@@ -185,9 +185,7 @@ def test_mapper_reports_no_targets_and_no_sources(
 
     fake.infos.clear()
     ui.runtime = SimpleNamespace(
-        registry=registry(
-            {"type": "object", "properties": {"Count": {"type": "integer"}}}
-        )
+        registry=registry({"type": "object", "properties": {"Count": {"type": "integer"}}})
     )
     monkeypatch.setattr("flowops.streamlit.workspace.source_fields", lambda *args: [])
     ui._editor()
