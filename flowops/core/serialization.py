@@ -7,6 +7,7 @@ from typing import Literal
 
 import yaml
 
+from flowops.core.migrations import migrate_definition
 from flowops.core.security import reject_secrets
 from flowops.domain.errors import WorkflowValidationError
 from flowops.domain.models import Runbook, new_id, utcnow
@@ -41,10 +42,11 @@ def import_runbook(
     if not isinstance(raw, dict):
         raise WorkflowValidationError("Runbook import must contain one object.")
     reject_secrets(raw)
+    migrated = migrate_definition(raw)
     try:
-        book = Runbook.model_validate(raw)
+        book = Runbook.model_validate(migrated)
     except ValueError as exc:
-        raise WorkflowValidationError("Runbook import does not match schema version 1.") from exc
+        raise WorkflowValidationError("Runbook import does not match the supported schema.") from exc
     if not preserve_identity:
         book.id = new_id()
         book.version = 0
