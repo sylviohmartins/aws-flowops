@@ -89,7 +89,9 @@ class Engine:
             or len(value) > 500
             for key, value in correlation.items()
         ):
-            raise WorkflowValidationError("Correlation context must contain up to 20 bounded strings.")
+            raise WorkflowValidationError(
+                "Correlation context must contain up to 20 bounded strings."
+            )
         reject_secrets(book.model_dump())
         reject_secrets(bound)
         reject_secrets(correlation)
