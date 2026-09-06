@@ -36,9 +36,7 @@ def test_sqs_message_attributes_receive_flowops_correlation() -> None:
         {
             "QueueUrl": "https://sqs.sa-east-1.amazonaws.com/000000000000/demo",
             "MessageBody": "payload",
-            "MessageAttributes": {
-                "Existing": {"DataType": "String", "StringValue": "kept"}
-            },
+            "MessageAttributes": {"Existing": {"DataType": "String", "StringValue": "kept"}},
         },
         context,
     )
