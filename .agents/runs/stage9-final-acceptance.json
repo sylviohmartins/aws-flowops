@@ -1,6 +1,6 @@
 {
   "id": "stage9-final-acceptance",
-  "phase": "implementation",
+  "phase": "validation",
   "requirements": [
     {
       "id": "REQ-001",
@@ -10,12 +10,24 @@
     {
       "id": "REQ-002",
       "description": "Lambda CURRENT vs PROPOSED review",
-      "status": "IN_PROGRESS"
+      "status": "DONE",
+      "evidence": [
+        "CI 34038325190 / 1207eac251947545d2eff36a4a04df6352914ca1: 167 tests passed, coverage 96.54%",
+        "tests/test_release_engine.py",
+        "tests/test_lambda_review.py",
+        "tests/test_release_ui.py"
+      ]
     },
     {
       "id": "REQ-003",
       "description": "Bulk limits and reconciliation",
-      "status": "IN_PROGRESS"
+      "status": "DONE",
+      "evidence": [
+        "CI 34038325190 / 1207eac251947545d2eff36a4a04df6352914ca1: 167 tests passed, coverage 96.54%",
+        "tests/test_release_engine.py",
+        "tests/test_lambda_review.py",
+        "tests/test_release_ui.py"
+      ]
     },
     {
       "id": "REQ-004",
@@ -57,8 +69,73 @@
       "status": "PENDING"
     }
   ],
-  "failures": [],
+  "failures": [
+    {
+      "summary": "Cached third-party canvas state discarded externally inserted nodes",
+      "status": "CLOSED",
+      "evidence": "Revision-scoped widget identity; test_canvas_sync.py and Chromium insertion/configuration/mapping/connect passed in run 34038325190"
+    },
+    {
+      "summary": "Browser edge selector assumed an unavailable data-id attribute",
+      "status": "FIXED_AWAITING_VALIDATION",
+      "evidence": "CI 34038325190; rendered-edge locator correction pushed in c3464b81cca22a73c9bb1319de8147ee7140e70f, awaiting CI 34060112190"
+    },
+    {
+      "summary": "Browser interactions raced Streamlit reruns before mapper acknowledgement",
+      "status": "FIXED_AWAITING_VALIDATION",
+      "evidence": "CI 34060112190; explicit server-state synchronization added from official Streamlit e2e contract. The next CI must verify the fix."
+    }
+  ],
   "checkpoint": {
-    "nextAction": "Run branch CI, inspect browser evidence and close documented acceptance."
+    "nextAction": "Validate browser rerun synchronization, then disconnection/save/publish/execute/rerun; required CI checks remain pending.",
+    "branch": "work-stage9-final-acceptance",
+    "head": "c3464b81cca22a73c9bb1319de8147ee7140e70f",
+    "main": "5f786b926c66597fc6e71a868c70fcf33f8ee6eb",
+    "changedFiles": [
+      ".github/workflows/quality.yml",
+      ".gitignore",
+      "README.md",
+      "docs/ARCHITECTURE.md",
+      "docs/DEVELOPMENT.md",
+      "docs/IAM.md",
+      "docs/OPERATIONS.md",
+      "docs/TESTING.md",
+      "flowops/application.py",
+      "flowops/core/actions.py",
+      "flowops/core/engine.py",
+      "flowops/core/graph.py",
+      "flowops/core/worker.py",
+      "flowops/providers/aws/actions.py",
+      "flowops/providers/aws/catalog.py",
+      "flowops/providers/aws/demo.py",
+      "flowops/streamlit/canvas.py",
+      "flowops/streamlit/ui.py",
+      "flowops/streamlit/workspace.py",
+      "tests/test_streamlit_helpers.py",
+      "tests/test_workspace_mapper_coverage.py"
+    ],
+    "executedChecks": [
+      "167 tests / 96.54%",
+      "PostgreSQL 16 integration",
+      "Ruff lint",
+      "mypy",
+      "Bandit",
+      "pip-audit",
+      "sdist and wheel build"
+    ],
+    "pendingChecks": [
+      "Complete Chromium journey",
+      "Exact final candidate CI",
+      "Promotion and main SHA CI"
+    ],
+    "risks": [
+      "No real AWS/SSO/CloudTrail environment exercised",
+      "Connector does not expose safe delete-ref"
+    ],
+    "decisions": [
+      "No production mutation, credential changes or migration",
+      "Preserve branch-isolated changes and squash-promote only the exact validated tree",
+      "Remove transient run before promotion; durable evidence belongs in docs"
+    ]
   }
 }
