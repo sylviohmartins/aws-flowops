@@ -71,7 +71,9 @@ def book() -> Runbook:
         nodes=[
             Node(id="start", action="core.start"),
             Node(id="source", action="fake.source"),
-            Node(id="target", action="fake.target", config={"Name": "{{ nodes.source.output.id }}"}),
+            Node(
+                id="target", action="fake.target", config={"Name": "{{ nodes.source.output.id }}"}
+            ),
             Node(id="end", action="core.end"),
         ],
         edges=[
