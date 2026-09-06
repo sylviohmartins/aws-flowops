@@ -159,7 +159,9 @@ def source_fields(book: Runbook, node_id: str, registry: ActionRegistry) -> list
 def apply_mapping(config: dict[str, Any], target_path: str, source_path: str) -> dict[str, Any]:
     """Return a copy with a full-expression mapping assigned to a nested object property."""
     if not TARGET_PATH.fullmatch(target_path):
-        raise WorkflowValidationError("Mapper target supports nested object fields separated by dots.")
+        raise WorkflowValidationError(
+            "Mapper target supports nested object fields separated by dots."
+        )
     path_parts(source_path)
     result = copy.deepcopy(config)
     current = result
@@ -233,7 +235,11 @@ def validate_mapping_types(
             properties = schema.get("properties", {}) if schema else {}
             for key, child in value.items():
                 child_schema = properties.get(key) if isinstance(properties, dict) else None
-                walk(child, child_schema if isinstance(child_schema, dict) else None, f"{path}.{key}".strip("."))
+                walk(
+                    child,
+                    child_schema if isinstance(child_schema, dict) else None,
+                    f"{path}.{key}".strip("."),
+                )
             return
         if isinstance(value, list):
             item_schema = schema.get("items") if schema else None
