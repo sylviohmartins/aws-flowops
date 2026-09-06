@@ -22,9 +22,7 @@ class DefinitionMigrator:
     def register(self, action: str, from_version: int, migration: NodeMigration) -> None:
         key = (action, from_version)
         if key in self._node_migrations:
-            raise WorkflowValidationError(
-                f"Duplicate node migration for {action} v{from_version}."
-            )
+            raise WorkflowValidationError(f"Duplicate node migration for {action} v{from_version}.")
         if from_version < 0 or from_version >= CURRENT_NODE_VERSION:
             raise WorkflowValidationError("Node migrations must advance an older version.")
         self._node_migrations[key] = migration
