@@ -59,7 +59,9 @@ def test_runbook_management_and_resource_discovery_journey() -> None:
             element(app.button, "Discover resources").click()
             app.run(timeout=20)
             assert list(app.exception) == []
-            assert any("Resource discovery is read-only" in caption.value for caption in app.caption)
+            assert any(
+                "Resource discovery is read-only" in caption.value for caption in app.caption
+            )
         finally:
             if previous is None:
                 os.environ.pop("FLOWOPS_DATABASE", None)
