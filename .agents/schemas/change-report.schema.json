@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aws-flowops.local/schemas/change-report.schema.json",
+  "type": "object",
+  "required": ["summary", "filesChanged", "testsExecuted", "checksNotExecuted", "awsImpact", "persistenceImpact", "securityImpact", "deploymentImpact", "rollbackPath", "openRisks"],
+  "properties": {
+    "summary": {"type": "string"},
+    "filesChanged": {"type": "array", "items": {"type": "string"}},
+    "testsExecuted": {"type": "array", "items": {"type": "string"}},
+    "checksNotExecuted": {"type": "array", "items": {"type": "string"}},
+    "awsImpact": {"type": "string"},
+    "persistenceImpact": {"type": "string"},
+    "securityImpact": {"type": "string"},
+    "deploymentImpact": {"type": "string"},
+    "rollbackPath": {"type": "string"},
+    "openRisks": {"type": "array", "items": {"type": "string"}}
+  }
+}

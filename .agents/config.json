@@ -1,0 +1,59 @@
+{
+  "$schema": "./schemas/agent-config.schema.json",
+  "version": 1,
+  "canonicalInstructions": "../AGENTS.md",
+  "execution": {
+    "strategy": "github-mediated-development",
+    "workingBranchRequired": true,
+    "pullRequestRequired": false,
+    "autonomousCiRecovery": true,
+    "promotionStyle": "validated-tree-squash"
+  },
+  "promotion": {
+    "targetBranch": "main",
+    "automaticMergeEnabled": false,
+    "requireAllChecks": true,
+    "requireExactValidatedTree": true,
+    "allowForceUpdateMain": false
+  },
+  "context": {
+    "loadPolicy": "progressive",
+    "skillsRoot": "skills",
+    "rulesRoot": "rules",
+    "memoryRoot": "memory",
+    "activeRunsRoot": "runs",
+    "completionContract": "specs/completion-contract.md"
+  },
+  "commands": {
+    "install": "python -m pip install -e '.[dev,postgres]'",
+    "agentCheck": "python scripts/agents/validate.py",
+    "completionCheck": "python scripts/agents/completion_gate.py",
+    "format": "ruff format --check .",
+    "lint": "ruff check .",
+    "types": "mypy flowops",
+    "tests": "pytest --cov=flowops --cov-report=term-missing --cov-fail-under=96",
+    "security": "bandit -r flowops -ll",
+    "dependencyAudit": "pip-audit",
+    "build": "python -m build"
+  },
+  "safety": {
+    "allowProductionAwsMutationForValidation": false,
+    "allowSecretMutation": false,
+    "allowDirectMainWritesForSubstantiveChanges": false,
+    "allowForceUpdateMain": false,
+    "requireHumanApprovalFor": [
+      "production-aws-mutation",
+      "secret-change",
+      "production-database-migration",
+      "bypass-production-guard",
+      "force-update-main"
+    ]
+  },
+  "memory": {
+    "durableOnly": true,
+    "requireSourceOrEvidence": true,
+    "requireLastValidatedDate": true,
+    "forbidSecrets": true,
+    "forbidConversationTranscripts": true
+  }
+}
