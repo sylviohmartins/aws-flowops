@@ -18,6 +18,7 @@ from typing import Any
 from flowops.core.security import bounded_output
 from flowops.domain.errors import ConflictError, WorkflowValidationError
 from flowops.domain.models import Runbook, new_id, utcnow
+from flowops.observability import emit
 from flowops.persistence.database import PostgresConnection, is_postgres
 
 
@@ -120,6 +121,7 @@ class Repository:
             "INSERT INTO audit_events VALUES (?, ?, ?, ?, ?, ?)",
             (new_id(), utcnow(), actor, event, execution_id, canonical(safe)),
         )
+        emit(event, actor=actor, execution_id=execution_id, **safe)
 
     def audit(
         self,
