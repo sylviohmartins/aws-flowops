@@ -195,7 +195,12 @@ def test_audit_filters_visibility_and_event_text(monkeypatch: pytest.MonkeyPatch
             "actor": "operator",
             "event": "EXECUTION_COMPLETED",
             "execution_id": visible_execution.id,
-            "body": {"environment": "dev", "account": "1", "region": "us-east-1", "result": "SUCCESS"},
+            "body": {
+                "environment": "dev",
+                "account": "1",
+                "region": "us-east-1",
+                "result": "SUCCESS",
+            },
         },
         {
             "id": "e2",
