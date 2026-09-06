@@ -24,7 +24,9 @@ class FlowOpsPage:
         if permissions is not None:
             self.user.permissions = list(permissions)
         self.aws_context = aws_context.model_copy(deep=True)
-        self.repository = repository or (runtime.repository if runtime else Repository.from_environment())
+        self.repository = repository or (
+            runtime.repository if runtime else Repository.from_environment()
+        )
         self.runtime = runtime
         self.generic_allowlist = set(generic_allowlist or set())
 
