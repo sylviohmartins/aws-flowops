@@ -143,8 +143,5 @@ def test_workspace_type_compatibility_and_duration_helpers() -> None:
     assert _duration(None, "2026-09-06T01:00:00+00:00") is None
     assert _duration("2026-09-06T01:00:00+00:00", None) is None
     assert _duration("invalid", "also-invalid") is None
-    assert (
-        _duration("2026-09-06T01:00:00+00:00", "2026-09-06T01:00:03.500000+00:00")
-        == 3.5
-    )
+    assert _duration("2026-09-06T01:00:00+00:00", "2026-09-06T01:00:03.500000+00:00") == 3.5
     assert _duration("2026-09-06T01:00:03+00:00", "2026-09-06T01:00:00+00:00") == 0.0
