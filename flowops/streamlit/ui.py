@@ -344,7 +344,10 @@ class FlowOpsUI:
             parameter_json = st.text_area(
                 "Parameter schema JSON",
                 value=json.dumps(
-                    {key: value.model_dump(mode="json") for key, value in working.parameters.items()},
+                    {
+                        key: value.model_dump(mode="json")
+                        for key, value in working.parameters.items()
+                    },
                     indent=2,
                     ensure_ascii=False,
                 ),

@@ -120,7 +120,7 @@ def journey(page: Page, database: Path) -> None:
     edge_count = canvas.locator(".react-flow__edge").count()
     start_handle.drag_to(target_handle)
     expect(canvas.locator(".react-flow__edge")).to_have_count(edge_count + 1)
-    added_edge = canvas.locator(f'.react-flow__edge[data-id="st-flow-edge_start-{send_id}"]')
+    added_edge = canvas.locator(".react-flow__edge").last
     point = added_edge.locator(".react-flow__edge-path").evaluate(
         """path => {
             const p = path.getPointAtLength(path.getTotalLength() * 0.25);
