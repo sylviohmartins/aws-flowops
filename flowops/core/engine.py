@@ -69,6 +69,7 @@ class Engine:
         token: str,
         dry_run: bool = True,
         reason: str = "",
+        correlation_context: dict[str, str] | None = None,
     ) -> Execution:
         published = self.repository.version(book.id, book.version)
         if published != book:
@@ -79,8 +80,19 @@ class Engine:
             raise PolicyViolation("Archived runbooks cannot start new executions.")
         validate_graph(book, self.registry)
         bound = bind_parameters(book, parameters)
+        correlation = dict(correlation_context or {})
+        if len(correlation) > 20 or any(
+            not isinstance(key, str)
+            or not isinstance(value, str)
+            or not key
+            or len(key) > 80
+            or len(value) > 500
+            for key, value in correlation.items()
+        ):
+            raise WorkflowValidationError("Correlation context must contain up to 20 bounded strings.")
         reject_secrets(book.model_dump())
         reject_secrets(bound)
+        reject_secrets(correlation)
         if not token or len(token) > 200:
             raise WorkflowValidationError("A bounded submission token is required.")
         execution = Execution(
@@ -91,6 +103,7 @@ class Engine:
             actor=actor.model_copy(deep=True),
             aws_context=aws.model_copy(deep=True),
             parameters=bound,
+            correlation_context=correlation,
             dry_run=dry_run,
             reason=reason,
         )
@@ -131,7 +144,6 @@ class Engine:
             order = validate_graph(execution.snapshot, self.registry)
             nodes = {n.id: n for n in execution.snapshot.nodes}
             completed = self.store.nodes(execution.id)
-            # Reconstruct checkpointed outputs after worker/browser restart.
             for key, detail in completed.items():
                 if detail["status"] == Status.SUCCESS:
                     execution.node_outputs[key] = detail.get("output")
@@ -244,6 +256,7 @@ class Engine:
                 "environment": execution.aws_context.environment,
                 "account": execution.aws_context.account_id,
                 "region": execution.aws_context.region,
+                **execution.correlation_context,
             },
             "nodes": {key: {"output": value} for key, value in execution.node_outputs.items()},
             "input": {
@@ -275,7 +288,13 @@ class Engine:
         template = (
             raw.pop("template", None) if node.action in {"core.map", "core.for_each"} else None
         )
-        detail: dict[str, Any] = {"started_at": utcnow(), "attempts": 0}
+        service = "core" if node.action.startswith("core.") else node.action.split(".", 1)[0]
+        detail: dict[str, Any] = {
+            "started_at": utcnow(),
+            "attempts": 0,
+            "action": node.action,
+            "service": service,
+        }
         try:
             config = resolve(raw, scope)
             if template is not None:
@@ -395,7 +414,13 @@ class Engine:
             else len(config.get("Entries", [])) or 1
         )
         needs_approval = self.policy.action(execution, action.metadata, affected)
-        context = ActionContext(execution.id, node.id, execution.aws_context, execution.dry_run)
+        context = ActionContext(
+            execution.id,
+            node.id,
+            execution.aws_context,
+            execution.dry_run,
+            execution.correlation_context,
+        )
         if needs_approval:
             gate = self._approval(
                 execution,
