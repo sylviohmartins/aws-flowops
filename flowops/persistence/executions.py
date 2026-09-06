@@ -91,13 +91,16 @@ class ExecutionStore:
                 f"{execution.aws_context.account_id}:{execution.aws_context.region}"
             )
             if not execution.dry_run:
+                db.execute(
+                    "INSERT INTO resource_locks (scope,execution_id) VALUES (?,?) "
+                    "ON CONFLICT(scope) DO NOTHING",
+                    (scope, execution_id),
+                )
                 lock = db.execute(
                     "SELECT execution_id FROM resource_locks WHERE scope=?", (scope,)
                 ).fetchone()
-                if lock and lock[0] != execution_id:
+                if lock is None or lock[0] != execution_id:
                     return False
-                if lock is None:
-                    db.execute("INSERT INTO resource_locks VALUES (?,?)", (scope, execution_id))
             execution.status = Status.RUNNING
             execution.started_at = execution.started_at or utcnow()
             changed = db.execute(
