@@ -117,7 +117,9 @@ class Worker:
         self.enqueued.append(execution_id)
 
 
-def ui_for(book: Runbook, *, environment: str = "production") -> tuple[FlowOpsWorkspaceUI, Engine, Worker]:
+def ui_for(
+    book: Runbook, *, environment: str = "production"
+) -> tuple[FlowOpsWorkspaceUI, Engine, Worker]:
     ui = FlowOpsWorkspaceUI.__new__(FlowOpsWorkspaceUI)
     ui.user = Identity(id="operator", roles=["ADMIN"])
     ui.aws = AWSContext(
@@ -146,7 +148,9 @@ def test_execute_returns_when_no_published_runbook(monkeypatch: pytest.MonkeyPat
     assert fake.captions == []
 
 
-def test_execute_requires_exact_live_production_confirmation(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_execute_requires_exact_live_production_confirmation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     fake = FakeStreamlit()
     fake.simulation = False
     fake.submitted = True
