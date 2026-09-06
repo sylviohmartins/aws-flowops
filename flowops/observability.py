@@ -10,8 +10,9 @@ from __future__ import annotations
 import json
 import logging
 import os
+from collections.abc import Iterable
 from datetime import datetime
-from typing import Any, Iterable
+from typing import Any
 
 from flowops.core.security import bounded_output
 from flowops.domain.models import Execution, Status
