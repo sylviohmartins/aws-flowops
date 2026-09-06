@@ -780,8 +780,7 @@ class FlowOpsUI:
                 "what": event["event"],
                 "execution": event["execution_id"],
                 "where": " / ".join(
-                    str(event["body"].get(key, ""))
-                    for key in ("environment", "account", "region")
+                    str(event["body"].get(key, "")) for key in ("environment", "account", "region")
                 ).strip(" /"),
                 "why": event["body"].get("reason", ""),
                 "result": event["body"].get("result", ""),
