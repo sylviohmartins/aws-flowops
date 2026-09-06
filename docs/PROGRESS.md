@@ -95,3 +95,45 @@ Evidência da branch no SHA `7508a23`: workflow Quality `34009887428` integralme
 44 arquivos já formatados, Ruff sem violações, mypy sem issues em 30 source files, 37 testes
 passando em 6,97 s, coverage total de 63%, Bandit sem findings, `pip-audit` sem vulnerabilidades
 conhecidas nas dependências auditáveis e build de sdist/wheel concluído com sucesso.
+
+## Etapa 7 — hardening de produção, E2E e entrega
+
+A persistência agora suporta SQLite e PostgreSQL reais pelo mesmo contrato transacional. A CI
+provisiona PostgreSQL 16 e valida migrations, round-trip do repositório, execução dry-run e
+execução live com aquisição/liberação de locks. O DSN não é exposto na identificação pública
+do Repository.
+
+O editor recebeu Data Mapper orientado pelos schemas de botocore: browser de campos, tipos,
+required/default/enum/documentação, autocomplete de parâmetros/contexto/outputs ancestrais,
+preview de mapping e validação fail-closed de incompatibilidades de tipos conhecidas. Import de
+Runbook passa por estratégia explícita de `schema_version`/`node_version`; versões futuras ou
+antigas sem migration registrada são rejeitadas em vez de reinterpretadas silenciosamente.
+
+O engine ganhou rotas `FAIL_BRANCH` explícitas e `core.compensation`: uma falha pode seguir
+somente pela aresta `failure`, enquanto a Action compensatória usa o mesmo caminho governado de
+policy, approval, simulation e retry das demais Actions. Não há promessa de rollback
+transacional. Correlation context fornecido pelo host é persistido, exposto ao DSL e propagado
+como message attributes em SQS/SNS quando tecnicamente suportado.
+
+Observabilidade passa a emitir audit events também como JSON sanitizado e fornece snapshot das
+métricas canônicas de execução/nodes/AWS calls. O Dashboard apresenta métricas, runbooks mais
+utilizados, falhas e execução por ambiente. O histórico ganhou filtros por usuário, período,
+status, ambiente, runbook e conta, além de duração, drill-down, input/output sanitizados e
+visualização readonly do DAG com status dos nodes.
+
+A fronteira de embedding aceita identidade, permissões, contexto AWS e correlation context sem
+expor Repository/Engine/boto3 ao host. Generic AWS Action continua require allowlist explícita e
+serviços sensíveis permanecem fail-closed. Sessões/clientes AWS são liberados após o worker.
+Produção mantém confirmação digitada, RBAC, destructive grant, limites e two-person approval.
+
+A documentação final inclui README, Architecture, Security, Operations, Development,
+Deployment, Integration, IAM, Testing, Contributing e ADRs 001–010.
+
+Evidência final da branch no SHA `3f5c89e`: workflow Quality `34012271755` integralmente verde.
+Ruff confirmou 77 arquivos formatados e lint sem violações; mypy reportou zero issues em 37
+source files; **53/53 testes** passaram em 8,81 s, incluindo PostgreSQL 16, Fix Stuck Payment,
+AWS fakes/stubs, mapping, migrations, failure/compensation, observability/correlation e smoke
+Streamlit. Cobertura real: **65,89%** (floor 60%), com engine 81%, graph 82%, policies 93%,
+security 90%, observability 90%, execution store 92% e AWS actions 81%. Bandit não identificou
+issues em 4.828 linhas de código, `pip-audit` não encontrou vulnerabilidades conhecidas nas
+dependências auditáveis e o build produziu sdist e wheel com sucesso.
