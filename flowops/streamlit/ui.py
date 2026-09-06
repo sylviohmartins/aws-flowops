@@ -424,7 +424,7 @@ class FlowOpsUI:
         if st.session_state.get(selection_key) not in {node.id for node in working.nodes}:
             st.session_state.pop(selection_key, None)
         st.caption(
-            "Drag handles to connect nodes. Select an edge to edit its branch or disconnect it. Duplicated nodes must be connected before saving."
+            "Drag handles to connect nodes. Right-click an edge to edit its branch or disconnect it. Duplicated nodes must be connected before saving."
         )
 
         if working.nodes:

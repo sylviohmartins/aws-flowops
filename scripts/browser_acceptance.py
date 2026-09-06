@@ -61,6 +61,7 @@ def journey(page: Page, database: Path) -> None:
     navigate(page, "Editor")
     expect(page.get_by_role("heading", name="Visual Runbook Editor", exact=True)).to_be_visible()
     choose(page, "Action", "dynamodb.get_item")
+    expect(page.get_by_text(re.compile("AWS dynamodb GetItem · risk"))).to_be_visible()
     page.get_by_role("button", name="Insert before End", exact=True).click()
     canvas = page.frame_locator('iframe[title="streamlit_flow.streamlit_flow"]')
     get_node = canvas.locator(".react-flow__node").filter(has_text="dynamodb.get_item")
@@ -68,18 +69,25 @@ def journey(page: Page, database: Path) -> None:
     get_id = get_node.get_attribute("data-id")
     assert get_id
     get_node.click()
+    expect(page.get_by_role("combobox", name="Node properties", exact=True)).to_have_value(
+        re.compile("dynamodb.get_item")
+    )
     expect(page.get_by_label("Configuration JSON", exact=True)).to_have_value("{}")
     page.get_by_label("Configuration JSON", exact=True).fill(
         json.dumps({"TableName": "payments", "Key": {"paymentId": {"S": "12345"}}})
     )
     page.get_by_role("button", name="Apply node properties", exact=True).click()
     choose(page, "Action", "sqs.send_message")
+    expect(page.get_by_text(re.compile("AWS sqs SendMessage · risk"))).to_be_visible()
     page.get_by_role("button", name="Insert before End", exact=True).click()
     send_node = canvas.locator(".react-flow__node").filter(has_text="sqs.send_message")
     expect(send_node).to_have_count(1)
     send_id = send_node.get_attribute("data-id")
     assert send_id
     send_node.click()
+    expect(page.get_by_role("combobox", name="Node properties", exact=True)).to_have_value(
+        re.compile("sqs.send_message")
+    )
     page.get_by_label("Configuration JSON", exact=True).fill(
         json.dumps(
             {
@@ -108,13 +116,22 @@ def journey(page: Page, database: Path) -> None:
     expect(send_node).not_to_have_attribute("style", node_before or "")
     expect(canvas.locator(".react-flow__minimap")).to_be_visible()
     start_handle = canvas.locator('.react-flow__node[data-id="start"] .source')
-    end_handle = canvas.locator('.react-flow__node[data-id="end"] .target')
+    target_handle = canvas.locator(f'.react-flow__node[data-id="{send_id}"] .target')
     edge_count = canvas.locator(".react-flow__edge").count()
-    start_handle.drag_to(end_handle)
+    start_handle.drag_to(target_handle)
     expect(canvas.locator(".react-flow__edge")).to_have_count(edge_count + 1)
-    added_edge = canvas.locator(".react-flow__edge").last
-    added_edge.click(force=True)
-    page.keyboard.press("Backspace")
+    added_edge = canvas.locator(f'.react-flow__edge[data-id="st-flow-edge_start-{send_id}"]')
+    point = added_edge.locator(".react-flow__edge-path").evaluate(
+        """path => {
+            const p = path.getPointAtLength(path.getTotalLength() * 0.25);
+            const screen = new DOMPoint(p.x, p.y).matrixTransform(path.getScreenCTM());
+            return {x: screen.x, y: screen.y};
+        }"""
+    )
+    frame_box = page.locator('iframe[title="streamlit_flow.streamlit_flow"]').bounding_box()
+    assert frame_box
+    page.mouse.click(frame_box["x"] + point["x"], frame_box["y"] + point["y"], button="right")
+    canvas.get_by_role("button", name="Delete Edge", exact=True).click()
     expect(canvas.locator(".react-flow__edge")).to_have_count(edge_count)
 
     page.get_by_role("button", name="Validate", exact=True).click()
@@ -123,6 +140,7 @@ def journey(page: Page, database: Path) -> None:
     expect(page.get_by_role("button", name="Publish version", exact=True)).to_be_enabled()
     repository = Repository(database)
     book = repository.list_runbooks("Browser acceptance")[0]
+    assert len(book.edges) == edge_count == 3
     send = next(node for node in book.nodes if node.id == send_id)
     assert send.config["MessageBody"] == "{{ " + f"nodes.{get_id}.output.Item" + " }}"
     assert send.position[1] != 180
