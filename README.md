@@ -199,7 +199,7 @@ python -m pip install -e '.[dev,postgres]'
 ruff format --check .
 ruff check .
 mypy flowops
-pytest --cov=flowops --cov-report=term-missing --cov-fail-under=60
+pytest --cov=flowops --cov-report=term-missing --cov-fail-under=96
 bandit -r flowops -ll
 pip-audit
 python -m build
@@ -214,7 +214,8 @@ pytest tests/test_postgres.py -v
 
 A pipeline `.github/workflows/quality.yml` executa todos esses gates e provisiona PostgreSQL
 16 como service container. O smoke test Streamlit percorre todas as páginas principais do
-workspace.
+workspace. O piso global de cobertura é 96%; código crítico continua sujeito a testes de
+comportamento específicos, independentemente do percentual agregado.
 
 ## Documentação
 
