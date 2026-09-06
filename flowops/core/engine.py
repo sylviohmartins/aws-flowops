@@ -147,8 +147,10 @@ class Engine:
             nodes = {n.id: n for n in execution.snapshot.nodes}
             completed = self.store.nodes(execution.id)
             for key, detail in completed.items():
-                if detail["status"] == Status.SUCCESS:
+                status = detail["status"]
+                if status == Status.SUCCESS:
                     execution.node_outputs[key] = detail.get("output")
+                if status in {Status.SUCCESS, Status.FAILED}:
                     execution.node_branches[key] = detail.get("branch", "default")
             remaining = [
                 key
@@ -179,10 +181,17 @@ class Engine:
                 for key in ready:
                     incoming = [e for e in execution.snapshot.edges if e.target == key]
                     active = not incoming or any(
-                        completed.get(e.source, {}).get("status") == Status.SUCCESS
-                        and (
-                            e.branch == "default"
-                            or execution.node_branches.get(e.source) == e.branch
+                        (
+                            completed.get(e.source, {}).get("status") == Status.SUCCESS
+                            and (
+                                e.branch == "default"
+                                or execution.node_branches.get(e.source) == e.branch
+                            )
+                        )
+                        or (
+                            completed.get(e.source, {}).get("status") == Status.FAILED
+                            and e.branch == "failure"
+                            and execution.node_branches.get(e.source) == "failure"
                         )
                         for e in incoming
                     )
@@ -229,11 +238,12 @@ class Engine:
                 if execution.status in {Status.FAILED, Status.CANCELLED}:
                     break
             if execution.status == Status.RUNNING:
-                execution.status = (
-                    Status.FAILED
-                    if any(v["status"] == Status.FAILED for v in completed.values())
-                    else Status.SUCCESS
+                unhandled_failure = any(
+                    detail["status"] == Status.FAILED
+                    and (key not in nodes or nodes[key].failure_policy != "FAIL_BRANCH")
+                    for key, detail in completed.items()
                 )
+                execution.status = Status.FAILED if unhandled_failure else Status.SUCCESS
             for key in remaining:
                 self.store.checkpoint(
                     execution, key, Status.SKIPPED, {"reason": "Execution stopped"}
@@ -269,6 +279,7 @@ class Engine:
     def _record(self, execution: Execution, node: Node, outcome: Outcome) -> None:
         if outcome.status == Status.SUCCESS:
             execution.node_outputs[node.id] = outcome.output
+        if outcome.status in {Status.SUCCESS, Status.FAILED}:
             execution.node_branches[node.id] = outcome.branch
         detail = self.store.nodes(execution.id).get(node.id, {})
         detail.update(
@@ -325,7 +336,7 @@ class Engine:
                 outcome = Outcome(
                     Status.SUCCESS, {"waited_seconds": 0 if execution.dry_run else seconds}
                 )
-            elif node.action == "core.retry":
+            elif node.action in {"core.retry", "core.compensation"}:
                 nested = Node(
                     id=node.id,
                     action=config["action"],
@@ -373,10 +384,16 @@ class Engine:
             self.store.checkpoint(execution, node.id, Status.FAILED, detail)
             if node.failure_policy == "CONTINUE":
                 return Outcome(Status.SUCCESS, {"error": str(exc), "failed": True})
-            return Outcome(Status.FAILED, error=str(exc))
+            return Outcome(
+                Status.FAILED,
+                branch="failure" if node.failure_policy == "FAIL_BRANCH" else "default",
+                error=str(exc),
+            )
         except Exception:
             return Outcome(
-                Status.FAILED, error="Invalid action input or unexpected provider failure."
+                Status.FAILED,
+                branch="failure" if node.failure_policy == "FAIL_BRANCH" else "default",
+                error="Invalid action input or unexpected provider failure.",
             )
 
     def _approval(
