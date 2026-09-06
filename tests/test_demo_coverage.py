@@ -214,12 +214,15 @@ def test_demo_backend_full_operation_surface_and_errors() -> None:
 
         buckets = invoke(backend, "s3", "list_buckets", {})
         assert buckets["Buckets"] == [{"Name": "flowops-demo"}]
-        assert invoke(
-            backend,
-            "s3",
-            "list_objects_v2",
-            {"Bucket": "flowops-demo"},
-        )["Contents"] == []
+        assert (
+            invoke(
+                backend,
+                "s3",
+                "list_objects_v2",
+                {"Bucket": "flowops-demo"},
+            )["Contents"]
+            == []
+        )
         put = invoke(
             backend,
             "s3",
@@ -254,9 +257,7 @@ def test_demo_preview_dry_run_isolation_eviction_and_reset() -> None:
     with tempfile.TemporaryDirectory() as temp:
         repo = Repository(Path(temp) / "demo.db")
         backend = DemoBackend(repo)
-        queue = (
-            "https://sqs.sa-east-1.amazonaws.com/000000000000/payments-events"
-        )
+        queue = "https://sqs.sa-east-1.amazonaws.com/000000000000/payments-events"
 
         preview = backend.preview(
             "sqs",
