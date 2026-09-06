@@ -6,6 +6,7 @@ from typing import Any
 
 from flowops.core.actions import ActionRegistry
 from flowops.core.expressions import path_parts, references
+from flowops.core.mapping import validate_mapping_types
 from flowops.domain.errors import WorkflowValidationError
 from flowops.domain.models import Runbook
 
@@ -100,6 +101,8 @@ def validate_graph(book: Runbook, registry: ActionRegistry | None = None) -> lis
                     )
             elif parts[0] not in {"input", "context"}:
                 raise WorkflowValidationError("Unknown expression root.")
+        if registry is not None:
+            validate_mapping_types(book, node, ancestors[node_id], registry)
     return order
 
 
