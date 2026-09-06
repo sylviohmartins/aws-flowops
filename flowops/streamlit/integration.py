@@ -62,7 +62,7 @@ class FlowOpsPage:
     def render(self) -> None:
         import streamlit as st
 
-        from flowops.streamlit.workspace import FlowOpsWorkspaceUI
+        from flowops.streamlit.failure_workspace import FlowOpsGovernedUI
 
         st.title("AWS FlowOps Studio")
         st.caption("Visual, versioned and governed AWS operational runbooks")
@@ -75,7 +75,7 @@ class FlowOpsPage:
         except (RuntimeError, ValueError) as exc:
             st.error(str(exc))
             return
-        FlowOpsWorkspaceUI(
+        FlowOpsGovernedUI(
             self.user,
             self.aws_context,
             runtime,
