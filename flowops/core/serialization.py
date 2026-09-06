@@ -46,7 +46,9 @@ def import_runbook(
     try:
         book = Runbook.model_validate(migrated)
     except ValueError as exc:
-        raise WorkflowValidationError("Runbook import does not match the supported schema.") from exc
+        raise WorkflowValidationError(
+            "Runbook import does not match the supported schema."
+        ) from exc
     if not preserve_identity:
         book.id = new_id()
         book.version = 0
