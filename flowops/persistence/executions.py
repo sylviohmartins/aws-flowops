@@ -25,6 +25,7 @@ class ExecutionStore:
             "region": execution.aws_context.region,
             "reason": execution.reason,
             "dry_run": execution.dry_run,
+            "correlation_context": execution.correlation_context,
         }
 
     def create(self, execution: Execution, token: str) -> Execution:
@@ -91,13 +92,16 @@ class ExecutionStore:
                 f"{execution.aws_context.account_id}:{execution.aws_context.region}"
             )
             if not execution.dry_run:
+                db.execute(
+                    "INSERT INTO resource_locks (scope,execution_id) VALUES (?,?) "
+                    "ON CONFLICT(scope) DO NOTHING",
+                    (scope, execution_id),
+                )
                 lock = db.execute(
                     "SELECT execution_id FROM resource_locks WHERE scope=?", (scope,)
                 ).fetchone()
-                if lock and lock[0] != execution_id:
+                if lock is None or lock[0] != execution_id:
                     return False
-                if lock is None:
-                    db.execute("INSERT INTO resource_locks VALUES (?,?)", (scope, execution_id))
             execution.status = Status.RUNNING
             execution.started_at = execution.started_at or utcnow()
             changed = db.execute(
@@ -136,7 +140,6 @@ class ExecutionStore:
                     execution.id,
                 )
             elif execution.status == Status.WAITING_APPROVAL:
-                # Approval binds resolved inputs; release coarse lock while a human reviews.
                 db.execute("DELETE FROM resource_locks WHERE execution_id=?", (execution.id,))
 
     def checkpoint(
@@ -153,7 +156,7 @@ class ExecutionStore:
                 "result": status.value,
             }
             if isinstance(safe, dict):
-                for key in ("attempts", "duration_seconds", "error"):
+                for key in ("action", "service", "attempts", "duration_seconds", "error"):
                     if key in safe:
                         event_body[key] = safe[key]
             self.repository.event(

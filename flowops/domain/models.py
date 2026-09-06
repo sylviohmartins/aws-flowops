@@ -123,6 +123,7 @@ class Execution(Model):
     actor: Identity
     aws_context: AWSContext
     parameters: dict[str, Any] = Field(default_factory=dict)
+    correlation_context: dict[str, str] = Field(default_factory=dict)
     dry_run: bool = True
     reason: str = ""
     status: Status = Status.PENDING

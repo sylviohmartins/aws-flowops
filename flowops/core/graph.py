@@ -6,6 +6,7 @@ from typing import Any
 
 from flowops.core.actions import ActionRegistry
 from flowops.core.expressions import path_parts, references
+from flowops.core.mapping import validate_mapping_types
 from flowops.domain.errors import WorkflowValidationError
 from flowops.domain.models import Runbook
 
@@ -22,6 +23,7 @@ LOGIC_REQUIRED = {
     "core.merge": [],
     "core.wait": ["seconds"],
     "core.retry": ["action", "config"],
+    "core.compensation": ["action", "config"],
     "core.stop": [],
     "core.validation": ["left"],
     "core.approval": [],
@@ -56,6 +58,8 @@ def validate_graph(book: Runbook, registry: ActionRegistry | None = None) -> lis
             allowed = {"true", "false"}
         elif source.action == "core.switch":
             allowed |= set(source.config.get("cases", {}))
+        if source.failure_policy == "FAIL_BRANCH":
+            allowed.add("failure")
         if edge.branch not in allowed:
             raise WorkflowValidationError(f"Invalid branch {edge.branch} on {source.id}.")
     try:
@@ -64,6 +68,11 @@ def validate_graph(book: Runbook, registry: ActionRegistry | None = None) -> lis
         raise WorkflowValidationError("Cycles are forbidden; use bounded For Each.") from exc
     if incoming[starts[0]] or any(outgoing[end] for end in ends):
         raise WorkflowValidationError("Start has no input; End/Stop has no output.")
+    for node in book.nodes:
+        if node.failure_policy == "FAIL_BRANCH" and not any(
+            edge.source == node.id and edge.branch == "failure" for edge in book.edges
+        ):
+            raise WorkflowValidationError(f"{node.id}: FAIL_BRANCH requires a failure edge.")
     ancestors: dict[str, set[str]] = {}
     for node_id in order:
         ancestors[node_id] = set(incoming[node_id])
@@ -83,6 +92,11 @@ def validate_graph(book: Runbook, registry: ActionRegistry | None = None) -> lis
         for key in required:
             if key not in node.config:
                 raise WorkflowValidationError(f"{node_id}: required input {key} is missing.")
+        if registry is not None and node.action in {"core.retry", "core.compensation"}:
+            nested_action = node.config.get("action")
+            if not isinstance(nested_action, str):
+                raise WorkflowValidationError(f"{node_id}: nested action must be a string.")
+            registry.get(nested_action)
         for ref in references(node.config):
             parts = path_parts(ref)
             if parts[0] == "nodes":
@@ -100,6 +114,8 @@ def validate_graph(book: Runbook, registry: ActionRegistry | None = None) -> lis
                     )
             elif parts[0] not in {"input", "context"}:
                 raise WorkflowValidationError("Unknown expression root.")
+        if registry is not None:
+            validate_mapping_types(book, node, ancestors[node_id], registry)
     return order
 
 

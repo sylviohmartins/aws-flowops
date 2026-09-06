@@ -9,6 +9,22 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: flowops
+          POSTGRES_PASSWORD: flowops
+          POSTGRES_DB: flowops
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U flowops -d flowops"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      FLOWOPS_TEST_POSTGRES_DSN: postgresql://flowops:flowops@localhost:5432/flowops
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -17,7 +33,7 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
       - name: Install
-        run: python -m pip install -e '.[dev]'
+        run: python -m pip install -e '.[dev,postgres]'
       - name: Format diagnostics
         run: ruff format --diff .
       - name: Lint
@@ -28,7 +44,7 @@ jobs:
         run: mypy flowops
       - name: Tests and coverage
         if: always()
-        run: pytest --cov=flowops --cov-report=term-missing --cov-report=xml
+        run: pytest --cov=flowops --cov-report=term-missing --cov-report=xml --cov-fail-under=60
       - name: Security
         if: always()
         run: bandit -r flowops -ll

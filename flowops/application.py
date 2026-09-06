@@ -11,7 +11,7 @@ from flowops.core.policies import PolicyEngine
 from flowops.core.worker import LocalWorker
 from flowops.domain.models import AWSContext
 from flowops.persistence.repository import Repository
-from flowops.providers.aws.actions import build_registry
+from flowops.providers.aws.actions import build_registry, register_generic
 from flowops.providers.aws.backend import BotoBackend
 from flowops.providers.aws.catalog import ModelCatalog
 from flowops.providers.aws.demo import DemoBackend
@@ -43,13 +43,28 @@ class FlowOpsRuntime:
         contexts: list[AWSContext],
         *,
         policy: PolicyEngine | None = None,
+        generic_allowlist: set[str] | None = None,
     ) -> FlowOpsRuntime:
         if not contexts or any(context.mode != "aws" for context in contexts):
             raise ValueError("Trusted AWS contexts are required for an AWS runtime.")
         backend = BotoBackend(contexts)
-        registry = build_registry(backend, catalog=ModelCatalog())
+        catalog = ModelCatalog()
+        registry = build_registry(backend, catalog=catalog)
+        for key in sorted(generic_allowlist or set()):
+            service, separator, operation = key.partition(".")
+            if not separator or not service or not operation or "." in operation:
+                raise ValueError("Generic AWS allowlist entries must use service.operation.")
+            register_generic(
+                registry, catalog, backend, service, operation, generic_allowlist or set()
+            )
         engine = Engine(repository, registry, policy=policy or PolicyEngine())
-        runtime = cls(repository, registry, engine, LocalWorker(engine), backend)
+        runtime = cls(
+            repository,
+            registry,
+            engine,
+            LocalWorker(engine, on_done=backend.release),
+            backend,
+        )
         runtime.worker.dispatch_pending()
         return runtime
 
@@ -63,7 +78,14 @@ class FlowOpsRuntime:
         backend: Any = None,
     ) -> FlowOpsRuntime:
         engine = Engine(repository, registry, policy=policy or PolicyEngine())
-        runtime = cls(repository, registry, engine, LocalWorker(engine), backend)
+        release = getattr(backend, "release", None)
+        runtime = cls(
+            repository,
+            registry,
+            engine,
+            LocalWorker(engine, on_done=release if callable(release) else None),
+            backend,
+        )
         runtime.worker.dispatch_pending()
         return runtime
 

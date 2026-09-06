@@ -1,7 +1,9 @@
 """Actions use schema validation and a narrow backend; every listed AWS call is real."""
 
 import base64
+import copy
 import json
+import re
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -55,7 +57,7 @@ class AWSAction:
         )
 
     def prepare(self, config: dict[str, Any]) -> tuple[dict[str, Any], Limits]:
-        parameters = dict(config)
+        parameters = copy.deepcopy(config)
         control = parameters.pop("_flowops", {})
         if not isinstance(control, dict) or control.keys() - {
             "max_items",
@@ -113,6 +115,41 @@ class AWSAction:
             parameters["Limit"] = requested
         return parameters, limits
 
+    @staticmethod
+    def _attribute_name(value: str) -> str:
+        cleaned = re.sub(r"[^A-Za-z0-9_.-]", "_", value)[:80]
+        return cleaned or "Context"
+
+    def _with_correlation(
+        self, parameters: dict[str, Any], context: ActionContext
+    ) -> dict[str, Any]:
+        """Propagate execution/correlation IDs only to APIs with native message attributes."""
+        if self.spec.service not in {"sqs", "sns"}:
+            return parameters
+        attributes: dict[str, Any] = {
+            "FlowOpsExecutionId": {"DataType": "String", "StringValue": context.execution_id}
+        }
+        for key, value in list(sorted(context.correlation_context.items()))[:10]:
+            attributes[f"FlowOps_{self._attribute_name(key)}"] = {
+                "DataType": "String",
+                "StringValue": value,
+            }
+        if self.spec.service == "sqs" and self.spec.operation == "send_message":
+            current = parameters.setdefault("MessageAttributes", {})
+            if isinstance(current, dict):
+                parameters["MessageAttributes"] = attributes | current
+        elif self.spec.service == "sqs" and self.spec.operation == "send_message_batch":
+            for entry in parameters.get("Entries", []):
+                if isinstance(entry, dict):
+                    current = entry.setdefault("MessageAttributes", {})
+                    if isinstance(current, dict):
+                        entry["MessageAttributes"] = attributes | current
+        elif self.spec.service == "sns" and self.spec.operation == "publish":
+            current = parameters.setdefault("MessageAttributes", {})
+            if isinstance(current, dict):
+                parameters["MessageAttributes"] = attributes | current
+        return parameters
+
     def validate(self, config: dict[str, Any]) -> None:
         parameters, _ = self.prepare(config)
         if self.catalog:
@@ -120,6 +157,7 @@ class AWSAction:
 
     def preview(self, config: dict[str, Any], context: ActionContext) -> Any:
         parameters, limits = self.prepare(config)
+        parameters = self._with_correlation(parameters, context)
         result: Any = None
         simulator = getattr(self.backend, "preview", None)
         if callable(simulator):
@@ -134,7 +172,7 @@ class AWSAction:
             "simulation": True,
             "native_dry_run": False,
             "action": self.spec.id,
-            "parameters": config,
+            "parameters": parameters,
             "limits": {"max_items": limits.max_items, "max_pages": limits.max_pages},
             "simulated_result": result,
             "note": "Mutation was not called against the selected AWS account.",
@@ -142,6 +180,7 @@ class AWSAction:
 
     def execute(self, config: dict[str, Any], context: ActionContext) -> Any:
         parameters, limits = self.prepare(config)
+        parameters = self._with_correlation(parameters, context)
         result = self.backend.invoke(
             self.spec.service, self.spec.operation, parameters, context, limits
         )

@@ -69,6 +69,7 @@ class Engine:
         token: str,
         dry_run: bool = True,
         reason: str = "",
+        correlation_context: dict[str, str] | None = None,
     ) -> Execution:
         published = self.repository.version(book.id, book.version)
         if published != book:
@@ -79,8 +80,21 @@ class Engine:
             raise PolicyViolation("Archived runbooks cannot start new executions.")
         validate_graph(book, self.registry)
         bound = bind_parameters(book, parameters)
+        correlation = dict(correlation_context or {})
+        if len(correlation) > 20 or any(
+            not isinstance(key, str)
+            or not isinstance(value, str)
+            or not key
+            or len(key) > 80
+            or len(value) > 500
+            for key, value in correlation.items()
+        ):
+            raise WorkflowValidationError(
+                "Correlation context must contain up to 20 bounded strings."
+            )
         reject_secrets(book.model_dump())
         reject_secrets(bound)
+        reject_secrets(correlation)
         if not token or len(token) > 200:
             raise WorkflowValidationError("A bounded submission token is required.")
         execution = Execution(
@@ -91,6 +105,7 @@ class Engine:
             actor=actor.model_copy(deep=True),
             aws_context=aws.model_copy(deep=True),
             parameters=bound,
+            correlation_context=correlation,
             dry_run=dry_run,
             reason=reason,
         )
@@ -131,10 +146,11 @@ class Engine:
             order = validate_graph(execution.snapshot, self.registry)
             nodes = {n.id: n for n in execution.snapshot.nodes}
             completed = self.store.nodes(execution.id)
-            # Reconstruct checkpointed outputs after worker/browser restart.
             for key, detail in completed.items():
-                if detail["status"] == Status.SUCCESS:
+                status = detail["status"]
+                if status == Status.SUCCESS:
                     execution.node_outputs[key] = detail.get("output")
+                if status in {Status.SUCCESS, Status.FAILED}:
                     execution.node_branches[key] = detail.get("branch", "default")
             remaining = [
                 key
@@ -165,10 +181,17 @@ class Engine:
                 for key in ready:
                     incoming = [e for e in execution.snapshot.edges if e.target == key]
                     active = not incoming or any(
-                        completed.get(e.source, {}).get("status") == Status.SUCCESS
-                        and (
-                            e.branch == "default"
-                            or execution.node_branches.get(e.source) == e.branch
+                        (
+                            completed.get(e.source, {}).get("status") == Status.SUCCESS
+                            and (
+                                e.branch == "default"
+                                or execution.node_branches.get(e.source) == e.branch
+                            )
+                        )
+                        or (
+                            completed.get(e.source, {}).get("status") == Status.FAILED
+                            and e.branch == "failure"
+                            and execution.node_branches.get(e.source) == "failure"
                         )
                         for e in incoming
                     )
@@ -215,11 +238,12 @@ class Engine:
                 if execution.status in {Status.FAILED, Status.CANCELLED}:
                     break
             if execution.status == Status.RUNNING:
-                execution.status = (
-                    Status.FAILED
-                    if any(v["status"] == Status.FAILED for v in completed.values())
-                    else Status.SUCCESS
+                unhandled_failure = any(
+                    detail["status"] == Status.FAILED
+                    and (key not in nodes or nodes[key].failure_policy != "FAIL_BRANCH")
+                    for key, detail in completed.items()
                 )
+                execution.status = Status.FAILED if unhandled_failure else Status.SUCCESS
             for key in remaining:
                 self.store.checkpoint(
                     execution, key, Status.SKIPPED, {"reason": "Execution stopped"}
@@ -244,6 +268,7 @@ class Engine:
                 "environment": execution.aws_context.environment,
                 "account": execution.aws_context.account_id,
                 "region": execution.aws_context.region,
+                **execution.correlation_context,
             },
             "nodes": {key: {"output": value} for key, value in execution.node_outputs.items()},
             "input": {
@@ -254,6 +279,7 @@ class Engine:
     def _record(self, execution: Execution, node: Node, outcome: Outcome) -> None:
         if outcome.status == Status.SUCCESS:
             execution.node_outputs[node.id] = outcome.output
+        if outcome.status in {Status.SUCCESS, Status.FAILED}:
             execution.node_branches[node.id] = outcome.branch
         detail = self.store.nodes(execution.id).get(node.id, {})
         detail.update(
@@ -275,7 +301,13 @@ class Engine:
         template = (
             raw.pop("template", None) if node.action in {"core.map", "core.for_each"} else None
         )
-        detail: dict[str, Any] = {"started_at": utcnow(), "attempts": 0}
+        service = "core" if node.action.startswith("core.") else node.action.split(".", 1)[0]
+        detail: dict[str, Any] = {
+            "started_at": utcnow(),
+            "attempts": 0,
+            "action": node.action,
+            "service": service,
+        }
         try:
             config = resolve(raw, scope)
             if template is not None:
@@ -304,7 +336,7 @@ class Engine:
                 outcome = Outcome(
                     Status.SUCCESS, {"waited_seconds": 0 if execution.dry_run else seconds}
                 )
-            elif node.action == "core.retry":
+            elif node.action in {"core.retry", "core.compensation"}:
                 nested = Node(
                     id=node.id,
                     action=config["action"],
@@ -352,10 +384,16 @@ class Engine:
             self.store.checkpoint(execution, node.id, Status.FAILED, detail)
             if node.failure_policy == "CONTINUE":
                 return Outcome(Status.SUCCESS, {"error": str(exc), "failed": True})
-            return Outcome(Status.FAILED, error=str(exc))
+            return Outcome(
+                Status.FAILED,
+                branch="failure" if node.failure_policy == "FAIL_BRANCH" else "default",
+                error=str(exc),
+            )
         except Exception:
             return Outcome(
-                Status.FAILED, error="Invalid action input or unexpected provider failure."
+                Status.FAILED,
+                branch="failure" if node.failure_policy == "FAIL_BRANCH" else "default",
+                error="Invalid action input or unexpected provider failure.",
             )
 
     def _approval(
@@ -395,7 +433,13 @@ class Engine:
             else len(config.get("Entries", [])) or 1
         )
         needs_approval = self.policy.action(execution, action.metadata, affected)
-        context = ActionContext(execution.id, node.id, execution.aws_context, execution.dry_run)
+        context = ActionContext(
+            execution.id,
+            node.id,
+            execution.aws_context,
+            execution.dry_run,
+            execution.correlation_context,
+        )
         if needs_approval:
             gate = self._approval(
                 execution,

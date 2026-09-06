@@ -1,19 +1,25 @@
-"""Transactional DB-API repository. SQLite for local development; injectable connection factory.
+"""Transactional persistence for local SQLite and production PostgreSQL.
 
 Immutable published definitions use insert-only rows. Draft updates use compare-and-swap.
-No UI/session state is authoritative. PostgreSQL support is supplied by the SQL adapter.
+No UI/session state is authoritative. SQL stays deliberately portable across both backends.
 """
+
+from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
+from flowops.core.security import bounded_output
 from flowops.domain.errors import ConflictError, WorkflowValidationError
 from flowops.domain.models import Runbook, new_id, utcnow
+from flowops.observability import emit
+from flowops.persistence.database import PostgresConnection, is_postgres
 
 
 def canonical(value: Any) -> str:
@@ -30,26 +36,60 @@ class Repository:
     """Short-lived transactions are safe to share across UI sessions and worker threads."""
 
     def __init__(self, database: str | Path = "flowops.db"):
-        self.database = str(database)
-        if self.database == ":memory:":
+        configured = str(database)
+        self._database = configured
+        self.backend = "postgres" if is_postgres(configured) else "sqlite"
+        self.database = (
+            f"postgresql://configured-{hashlib.sha256(configured.encode()).hexdigest()[:12]}"
+            if self.backend == "postgres"
+            else configured
+        )
+        if self.backend == "sqlite" and configured == ":memory:":
             raise ValueError("Use a temporary database file: workers require shared persistence.")
         self.migrate()
 
+    @classmethod
+    def from_environment(cls) -> Repository:
+        """Resolve storage without exposing repository internals to an embedding host."""
+        configured = (
+            os.getenv("FLOWOPS_DATABASE_URL") or os.getenv("FLOWOPS_DATABASE") or "flowops.db"
+        )
+        return cls(configured)
+
     @contextmanager
     def transaction(self) -> Iterator[Any]:
-        connection = sqlite3.connect(self.database, timeout=30)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys=ON")
-        connection.execute("PRAGMA busy_timeout=30000")
+        if self.backend == "postgres":
+            try:
+                import psycopg
+            except ImportError as exc:  # pragma: no cover - environment packaging guard
+                raise RuntimeError(
+                    "PostgreSQL requires the optional dependency: pip install 'aws-flowops[postgres]'"
+                ) from exc
+            pg_connection = psycopg.connect(self._database, connect_timeout=5)
+            db = PostgresConnection(pg_connection)
+            try:
+                yield db
+                pg_connection.commit()
+            except BaseException:
+                pg_connection.rollback()
+                raise
+            finally:
+                pg_connection.close()
+            return
+
+        sqlite_connection = sqlite3.connect(self._database, timeout=30)
+        sqlite_connection.row_factory = sqlite3.Row
+        sqlite_connection.execute("PRAGMA foreign_keys=ON")
+        sqlite_connection.execute("PRAGMA busy_timeout=30000")
         try:
-            connection.execute("BEGIN IMMEDIATE")
-            yield connection
-            connection.commit()
+            sqlite_connection.execute("BEGIN IMMEDIATE")
+            yield sqlite_connection
+            sqlite_connection.commit()
         except BaseException:
-            connection.rollback()
+            sqlite_connection.rollback()
             raise
         finally:
-            connection.close()
+            sqlite_connection.close()
 
     def migrate(self) -> None:
         """Apply each numbered SQL migration once, within a transaction."""
@@ -68,15 +108,27 @@ class Repository:
 
     @staticmethod
     def event(
-        db: Any, actor: str, event: str, body: dict[str, Any], execution_id: str | None = None
+        db: Any,
+        actor: str,
+        event: str,
+        body: dict[str, Any],
+        execution_id: str | None = None,
     ) -> None:
+        safe = bounded_output(body)
+        if not isinstance(safe, dict):
+            safe = {"body": safe}
         db.execute(
             "INSERT INTO audit_events VALUES (?, ?, ?, ?, ?, ?)",
-            (new_id(), utcnow(), actor, event, execution_id, canonical(body)),
+            (new_id(), utcnow(), actor, event, execution_id, canonical(safe)),
         )
+        emit(event, actor=actor, execution_id=execution_id, **safe)
 
     def audit(
-        self, actor: str, event: str, body: dict[str, Any], execution_id: str | None = None
+        self,
+        actor: str,
+        event: str,
+        body: dict[str, Any],
+        execution_id: str | None = None,
     ) -> None:
         with self.transaction() as db:
             self.event(db, actor, event, body, execution_id)
@@ -109,7 +161,12 @@ class Repository:
                 if changed != 1:
                     raise ConflictError("Draft changed in another session. Reload before saving.")
                 event = "RUNBOOK_CHANGED"
-            self.event(db, actor, event, {"runbook_id": body.id, "revision": expected_revision + 1})
+            self.event(
+                db,
+                actor,
+                event,
+                {"runbook_id": body.id, "revision": expected_revision + 1},
+            )
         return expected_revision + 1
 
     def get_draft(self, runbook_id: str) -> tuple[Runbook, int]:
@@ -129,10 +186,10 @@ class Repository:
             ).fetchall()
         books = [Runbook.model_validate_json(row["body"]) for row in rows]
         return [
-            b
-            for b in books
+            book
+            for book in books
             if query.casefold()
-            in f"{b.name} {b.description} {' '.join(b.tags)} {b.team}".casefold()
+            in f"{book.name} {book.description} {' '.join(book.tags)} {book.team}".casefold()
         ]
 
     def publish(self, runbook_id: str, actor: str, expected_revision: int) -> Runbook:
@@ -153,7 +210,12 @@ class Repository:
                 "INSERT INTO runbook_versions VALUES (?,?,?,?,?)",
                 (book.id, version, book.model_dump_json(), digest(book.model_dump()), utcnow()),
             )
-            self.event(db, actor, "RUNBOOK_PUBLISHED", {"runbook_id": book.id, "version": version})
+            self.event(
+                db,
+                actor,
+                "RUNBOOK_PUBLISHED",
+                {"runbook_id": book.id, "version": version},
+            )
         return book
 
     def version(self, runbook_id: str, version: int | None = None) -> Runbook:
@@ -178,15 +240,20 @@ class Repository:
     def versions(self, runbook_id: str) -> list[int]:
         with self.transaction() as db:
             return [
-                r[0]
-                for r in db.execute(
+                row[0]
+                for row in db.execute(
                     "SELECT version FROM runbook_versions WHERE runbook_id=? ORDER BY version DESC",
                     (runbook_id,),
                 )
             ]
 
     def archive(
-        self, runbook_id: str, actor: str, *, deleted: bool = False, archived: bool = True
+        self,
+        runbook_id: str,
+        actor: str,
+        *,
+        deleted: bool = False,
+        archived: bool = True,
     ) -> None:
         with self.transaction() as db:
             db.execute(
@@ -201,9 +268,16 @@ class Repository:
             )
 
     def events(self, execution_id: str | None = None, limit: int = 500) -> list[dict[str, Any]]:
+        bounded_limit = min(limit, 2000)
         with self.transaction() as db:
-            rows = db.execute(
-                "SELECT * FROM audit_events WHERE (? IS NULL OR execution_id=?) ORDER BY created_at DESC LIMIT ?",
-                (execution_id, execution_id, min(limit, 2000)),
-            ).fetchall()
+            if execution_id is None:
+                rows = db.execute(
+                    "SELECT * FROM audit_events ORDER BY created_at DESC LIMIT ?",
+                    (bounded_limit,),
+                ).fetchall()
+            else:
+                rows = db.execute(
+                    "SELECT * FROM audit_events WHERE execution_id=? ORDER BY created_at DESC LIMIT ?",
+                    (execution_id, bounded_limit),
+                ).fetchall()
         return [dict(row) | {"body": json.loads(row["body"])} for row in rows]
