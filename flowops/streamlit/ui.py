@@ -311,57 +311,58 @@ class FlowOpsUI:
         require(self.user, "runbook.read", book)
         working = self._working_draft(book, revision)
         editable = self._granted("runbook.edit", book)
-        with st.form(f"flowops:metadata:{book.id}"):
-            name = st.text_input("Name", value=working.name, disabled=not editable)
-            description = st.text_area(
-                "Description",
-                value=working.description,
-                disabled=not editable,
-                height=80,
-            )
-            tags = st.text_input(
-                "Tags (comma separated)",
-                value=", ".join(working.tags),
-                disabled=not editable,
-            )
-            environments = st.multiselect(
-                "Allowed environments",
-                ["dev", "staging", "production"],
-                default=working.environments,
-                disabled=not editable,
-            )
-            metadata_applied = st.form_submit_button("Apply metadata", disabled=not editable)
-        if metadata_applied:
-            working.name = name.strip() or working.name
-            working.description = description
-            working.tags = [tag.strip() for tag in tags.split(",") if tag.strip()]
-            working.environments = environments or ["dev"]
-            self._store_working(working, revision)
-            st.rerun()
+        with st.expander("Runbook details", expanded=False):
+            with st.form(f"flowops:metadata:{book.id}"):
+                name = st.text_input("Name", value=working.name, disabled=not editable)
+                description = st.text_area(
+                    "Description",
+                    value=working.description,
+                    disabled=not editable,
+                    height=80,
+                )
+                tags = st.text_input(
+                    "Tags (comma separated)",
+                    value=", ".join(working.tags),
+                    disabled=not editable,
+                )
+                environments = st.multiselect(
+                    "Allowed environments",
+                    ["dev", "staging", "production"],
+                    default=working.environments,
+                    disabled=not editable,
+                )
+                metadata_applied = st.form_submit_button("Apply metadata", disabled=not editable)
+            if metadata_applied:
+                working.name = name.strip() or working.name
+                working.description = description
+                working.tags = [tag.strip() for tag in tags.split(",") if tag.strip()]
+                working.environments = environments or ["dev"]
+                self._store_working(working, revision)
+                st.rerun()
 
-        st.subheader("Parameters")
-        parameter_json = st.text_area(
-            "Parameter schema JSON",
-            value=json.dumps(
-                {key: value.model_dump(mode="json") for key, value in working.parameters.items()},
-                indent=2,
-                ensure_ascii=False,
-            ),
-            height=160,
-            disabled=not editable,
-            key=f"flowops:parameters:{book.id}:{revision}",
-        )
-        if st.button(
-            "Apply parameters",
-            disabled=not editable,
-            key=f"flowops:parameters-apply:{book.id}",
-        ):
-            raw = self._json_object(parameter_json, label="Parameter schema")
-            working.parameters = {
-                key: Parameter.model_validate(value) for key, value in raw.items()
-            }
-            self._store_working(working, revision)
-            st.rerun()
+            st.subheader("Parameters")
+            parameter_json = st.text_area(
+                "Parameter schema JSON",
+                value=json.dumps(
+                    {key: value.model_dump(mode="json") for key, value in working.parameters.items()},
+                    indent=2,
+                    ensure_ascii=False,
+                ),
+                height=160,
+                disabled=not editable,
+                key=f"flowops:parameters:{book.id}:{revision}",
+            )
+            if st.button(
+                "Apply parameters",
+                disabled=not editable,
+                key=f"flowops:parameters-apply:{book.id}",
+            ):
+                raw = self._json_object(parameter_json, label="Parameter schema")
+                working.parameters = {
+                    key: Parameter.model_validate(value) for key, value in raw.items()
+                }
+                self._store_working(working, revision)
+                st.rerun()
 
         st.subheader("Action palette")
         logic = sorted(LOGIC_REQUIRED)

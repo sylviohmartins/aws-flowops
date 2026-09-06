@@ -357,7 +357,9 @@ class Engine:
                 mapped, _ = logic(node.action, config, scope, self.policy.max_affected)
                 interval = config.get("interval_seconds", 0)
                 if type(interval) not in {int, float} or not 0 <= interval <= 10:
-                    raise WorkflowValidationError("Iteration interval must be between 0 and 10 seconds.")
+                    raise WorkflowValidationError(
+                        "Iteration interval must be between 0 and 10 seconds."
+                    )
                 action = self.registry.get(config["action"])
                 affected = 0
                 for item in mapped["items"]:
@@ -380,7 +382,9 @@ class Engine:
                         return gate
                 results = []
                 for index, item in enumerate(mapped["items"]):
-                    deadline = time.monotonic() + (interval if index and not execution.dry_run else 0)
+                    deadline = time.monotonic() + (
+                        interval if index and not execution.dry_run else 0
+                    )
                     while time.monotonic() < deadline:
                         if self.store.cancelled(execution.id):
                             return Outcome(Status.CANCELLED)
@@ -460,8 +464,8 @@ class Engine:
             node,
             detail.get("input", {}),
             {
-            "manual_intervention": True,
-            "input": detail.get("input"),
+                "manual_intervention": True,
+                "input": detail.get("input"),
                 "error": detail.get("error"),
                 "provider_details": detail.get("provider_details"),
                 "instruction": "Approve only after external reconciliation. Continue without replaying the failed action; no AWS result is fabricated.",

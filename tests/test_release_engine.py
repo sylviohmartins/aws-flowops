@@ -199,7 +199,9 @@ class ReleaseEngineTests(unittest.TestCase):
         f = self.fixture
         worker = LocalWorker(f.engine)
         self.addCleanup(worker.close)
-        with patch.object(worker, "dispatch_pending", side_effect=[RuntimeError("private DSN"), None]) as dispatch:
+        with patch.object(
+            worker, "dispatch_pending", side_effect=[RuntimeError("private DSN"), None]
+        ) as dispatch:
             with patch.object(worker.stopping, "wait", side_effect=[False, False, True]):
                 with self.assertLogs("flowops.worker", level="WARNING") as logs:
                     worker._dispatch_loop()
@@ -214,17 +216,30 @@ class ReleaseEngineTests(unittest.TestCase):
         expected = {
             "sns.publish_batch": ("sns:Publish",),
             "dynamodb.transact_get_items": ("dynamodb:GetItem",),
-            "dynamodb.transact_write_items": ("dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:ConditionCheckItem"),
+            "dynamodb.transact_write_items": (
+                "dynamodb:PutItem",
+                "dynamodb:UpdateItem",
+                "dynamodb:DeleteItem",
+                "dynamodb:ConditionCheckItem",
+            ),
         }
         for key, permissions in expected.items():
-            self.assertEqual(AWSAction(SPECS[key], Backend()).metadata.required_permissions, permissions)
+            self.assertEqual(
+                AWSAction(SPECS[key], Backend()).metadata.required_permissions, permissions
+            )
 
     def test_iteration_rate_limit_is_bounded_and_preserves_simulation(self) -> None:
         f = self.fixture
-        node = Node(id="each", action="core.for_each", config={
-            "items": [1, 2], "template": {"value": "{{ item }}"},
-            "action": "test.action", "interval_seconds": 0.01,
-        })
+        node = Node(
+            id="each",
+            action="core.for_each",
+            config={
+                "items": [1, 2],
+                "template": {"value": "{{ item }}"},
+                "action": "test.action",
+                "interval_seconds": 0.01,
+            },
+        )
         self.assertEqual(f.engine.execute(f.submit(f.book([node]))).status, Status.SUCCESS)
         self.assertEqual(f.action.calls, 2)
 
@@ -234,22 +249,40 @@ class ReleaseEngineTests(unittest.TestCase):
         self.assertIn("Iteration interval", result.error)
         self.assertEqual(f.action.calls, 2)
         node.config["interval_seconds"] = 10
-        with patch("flowops.core.engine.time.sleep", side_effect=AssertionError("Simulation cannot wait")):
-            result = f.engine.execute(f.submit(f.book([node]), token="simulation-interval", dry_run=True))
+        with patch(
+            "flowops.core.engine.time.sleep", side_effect=AssertionError("Simulation cannot wait")
+        ):
+            result = f.engine.execute(
+                f.submit(f.book([node]), token="simulation-interval", dry_run=True)
+            )
         self.assertEqual(result.status, Status.SUCCESS)
         self.assertEqual(f.action.calls, 2)
 
     def test_failed_iteration_can_be_reconciled_without_repeating_partial_work(self) -> None:
         f = self.fixture
         f.action.failures = 1
-        node = Node(id="each", action="core.for_each", failure_policy="MANUAL_INTERVENTION", config={
-            "items": [1, 2], "template": {"value": "{{ item }}"}, "action": "test.action",
-        })
+        node = Node(
+            id="each",
+            action="core.for_each",
+            failure_policy="MANUAL_INTERVENTION",
+            config={
+                "items": [1, 2],
+                "template": {"value": "{{ item }}"},
+                "action": "test.action",
+            },
+        )
         execution_id = f.submit(f.book([node]))
         self.assertEqual(f.engine.execute(execution_id).status, Status.WAITING_APPROVAL)
         self.assertEqual(f.engine.store.nodes(execution_id)["each__0"]["status"], Status.FAILED)
         approval = f.engine.store.pending_approvals()[0]
-        f.engine.approve(execution_id, "each", approval["digest"], f.other, approved=True, reason="Whole batch reconciled externally")
+        f.engine.approve(
+            execution_id,
+            "each",
+            approval["digest"],
+            f.other,
+            approved=True,
+            reason="Whole batch reconciled externally",
+        )
         self.assertEqual(f.engine.execute(execution_id).status, Status.SUCCESS)
         self.assertEqual(f.action.calls, 1)
 

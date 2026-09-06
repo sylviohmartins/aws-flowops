@@ -24,9 +24,11 @@ ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS = ROOT / "browser-artifacts"
 
 
-def choose(page: Page, label: str, value: str | re.Pattern[str]) -> None:
-    page.get_by_role("combobox", name=label, exact=True).click()
-    page.get_by_role("option", name=value, exact=isinstance(value, str)).click()
+def choose(page: Page, label: str, value: str) -> None:
+    control = page.get_by_role("combobox", name=label, exact=True)
+    control.click()
+    control.fill(value)
+    page.get_by_role("option", name=value, exact=True).click()
 
 
 def navigate(page: Page, label: str) -> None:
@@ -53,7 +55,9 @@ def journey(page: Page, database: Path) -> None:
     navigate(page, "Runbooks")
     page.get_by_label("Name override", exact=True).fill("Browser acceptance")
     page.get_by_role("button", name="Create runbook", exact=True).click()
-    expect(page.get_by_role("combobox", name="Saved runbooks", exact=True)).to_have_value("Browser acceptance · default")
+    expect(page.get_by_role("combobox", name="Saved runbooks", exact=True)).to_have_value(
+        "Browser acceptance · default"
+    )
     navigate(page, "Editor")
     expect(page.get_by_role("heading", name="Visual Runbook Editor", exact=True)).to_be_visible()
     choose(page, "Action", "dynamodb.get_item")
@@ -86,7 +90,7 @@ def journey(page: Page, database: Path) -> None:
     )
     page.get_by_role("button", name="Apply node properties", exact=True).click()
     choose(page, "Target field", "MessageBody")
-    choose(page, "Source", re.compile(rf"nodes\.{get_id}\.output\.Item ·"))
+    choose(page, "Source", f"nodes.{get_id}.output.Item · object")
     page.get_by_role("button", name="Apply mapping", exact=True).click()
     expect(page.get_by_label("Configuration JSON", exact=True)).to_have_value(
         re.compile(rf"nodes\.{get_id}\.output\.Item")
@@ -211,7 +215,10 @@ def main() -> None:
                     print("Browser acceptance PASS: " + (ARTIFACTS / "result.json").read_text())
                 finally:
                     page.screenshot(path=str(ARTIFACTS / "last-page.png"), full_page=True)
-                    print("FLOWOPS_BROWSER_SCREENSHOT=" + base64.b64encode((ARTIFACTS / "last-page.png").read_bytes()).decode())
+                    print(
+                        "FLOWOPS_BROWSER_SCREENSHOT="
+                        + base64.b64encode((ARTIFACTS / "last-page.png").read_bytes()).decode()
+                    )
                     (ARTIFACTS / "frames.json").write_text(
                         json.dumps([frame.url for frame in page.frames])
                     )
