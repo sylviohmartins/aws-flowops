@@ -1,21 +1,39 @@
-"""Streamlit presentation layer. All durable changes require explicit user actions."""
+"""Streamlit presentation layer. Durable changes happen only on explicit submissions."""
 
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Literal, cast
 
 from flowops.application import FlowOpsRuntime
 from flowops.core.graph import LOGIC_REQUIRED, validate_graph
 from flowops.core.policies import permissions, require
 from flowops.core.serialization import clone_runbook, export_runbook, import_runbook
 from flowops.domain.errors import FlowOpsError, WorkflowValidationError
-from flowops.domain.models import AWSContext, Identity, Node, Parameter, Runbook, Status, new_id
+from flowops.domain.models import (
+    AWSContext,
+    Edge,
+    Identity,
+    Node,
+    Parameter,
+    Runbook,
+    Status,
+    new_id,
+)
 from flowops.persistence.repository import digest
 from flowops.providers.aws.resources import EXPLORERS, explore
 from flowops.streamlit.canvas import workflow_canvas
 from flowops.templates import TEMPLATES
 
+ExportFormat = Literal["yaml", "json"]
+FailurePolicy = Literal["STOP", "CONTINUE", "RETRY", "FAIL_BRANCH", "MANUAL_INTERVENTION"]
+FAILURE_POLICIES: list[FailurePolicy] = [
+    "STOP",
+    "CONTINUE",
+    "RETRY",
+    "FAIL_BRANCH",
+    "MANUAL_INTERVENTION",
+]
 NAVIGATION = [
     "Dashboard",
     "Runbooks",
@@ -29,6 +47,8 @@ NAVIGATION = [
 
 
 class FlowOpsUI:
+    """Thin UI over the application/runtime services."""
+
     def __init__(self, user: Identity, aws_context: AWSContext, runtime: FlowOpsRuntime):
         self.user = user
         self.aws = aws_context
@@ -95,10 +115,13 @@ class FlowOpsUI:
         if selected not in ids:
             selected = next(iter(ids), None)
             st.session_state["flowops:selected_runbook"] = selected
-        return selected
+        return cast(str | None, selected)
 
     def _select_runbook(
-        self, *, label: str = "Runbook", published_only: bool = False
+        self,
+        *,
+        label: str = "Runbook",
+        published_only: bool = False,
     ) -> Runbook | None:
         import streamlit as st
 
@@ -113,11 +136,10 @@ class FlowOpsUI:
         if selected_id not in valid_ids:
             selected_id = valid_ids[0]
         labels = {book.id: f"{book.name} · {book.team}" for book in books}
-        index = valid_ids.index(selected_id)
         chosen = st.selectbox(
             label,
             valid_ids,
-            index=index,
+            index=valid_ids.index(selected_id),
             format_func=lambda value: labels[value],
             key=f"flowops:select:{label}:{published_only}",
         )
@@ -206,11 +228,14 @@ class FlowOpsUI:
         )
         st.write(book.description or "No description.")
         st.code(book.id, language=None)
-        export_format = st.radio(
-            "Export format",
-            ["yaml", "json"],
-            horizontal=True,
-            key="flowops:export-format",
+        export_format = cast(
+            ExportFormat,
+            st.radio(
+                "Export format",
+                ["yaml", "json"],
+                horizontal=True,
+                key="flowops:export-format",
+            ),
         )
         st.download_button(
             "Export",
@@ -218,36 +243,40 @@ class FlowOpsUI:
             file_name=f"{book.name.lower().replace(' ', '-')}.{export_format}",
             mime="application/yaml" if export_format == "yaml" else "application/json",
         )
-        if can_edit:
-            action_columns = st.columns(3)
-            if action_columns[0].button("Clone", key="flowops:clone"):
-                require(self.user, "runbook.edit", book)
-                cloned = clone_runbook(book, owner=self.user.id)
-                self.repository.save_draft(cloned, self.user.id)
-                st.session_state["flowops:selected_runbook"] = cloned.id
-                st.success("Runbook cloned.")
-                st.rerun()
-            if action_columns[1].button("Archive", key="flowops:archive"):
-                require(self.user, "runbook.edit", book)
-                self.repository.archive(book.id, self.user.id)
-                st.session_state["flowops:selected_runbook"] = None
-                st.rerun()
-            if action_columns[2].button("Logical delete", key="flowops:delete"):
-                require(self.user, "runbook.edit", book)
-                self.repository.archive(book.id, self.user.id, deleted=True)
-                st.session_state["flowops:selected_runbook"] = None
-                st.rerun()
-            uploaded = st.file_uploader("Import YAML/JSON", type=["yaml", "yml", "json"])
-            if uploaded is not None and st.button("Import as new draft", key="flowops:import"):
-                try:
-                    text = uploaded.getvalue().decode("utf-8")
-                except UnicodeDecodeError as exc:
-                    raise WorkflowValidationError("Runbook import must be UTF-8 text.") from exc
-                imported = import_runbook(text, owner=self.user.id)
-                self.repository.save_draft(imported, self.user.id)
-                st.session_state["flowops:selected_runbook"] = imported.id
-                st.success("Runbook imported.")
-                st.rerun()
+        if not can_edit:
+            return
+        action_columns = st.columns(3)
+        if action_columns[0].button("Clone", key="flowops:clone"):
+            require(self.user, "runbook.edit", book)
+            cloned = clone_runbook(book, owner=self.user.id)
+            self.repository.save_draft(cloned, self.user.id)
+            st.session_state["flowops:selected_runbook"] = cloned.id
+            st.success("Runbook cloned.")
+            st.rerun()
+        if action_columns[1].button("Archive", key="flowops:archive"):
+            require(self.user, "runbook.edit", book)
+            self.repository.archive(book.id, self.user.id)
+            st.session_state["flowops:selected_runbook"] = None
+            st.rerun()
+        if action_columns[2].button("Logical delete", key="flowops:delete"):
+            require(self.user, "runbook.edit", book)
+            self.repository.archive(book.id, self.user.id, deleted=True)
+            st.session_state["flowops:selected_runbook"] = None
+            st.rerun()
+        uploaded = st.file_uploader("Import YAML/JSON", type=["yaml", "yml", "json"])
+        if uploaded is not None and st.button("Import as new draft", key="flowops:import"):
+            try:
+                text = uploaded.getvalue().decode("utf-8")
+            except UnicodeDecodeError as exc:
+                raise WorkflowValidationError("Runbook import must be UTF-8 text.") from exc
+            imported = import_runbook(text, owner=self.user.id)
+            grants = permissions(self.user)
+            if "*" not in grants and imported.team not in self.user.teams:
+                imported.team = self.user.teams[0] if self.user.teams else "default"
+            self.repository.save_draft(imported, self.user.id)
+            st.session_state["flowops:selected_runbook"] = imported.id
+            st.success("Runbook imported.")
+            st.rerun()
 
     @staticmethod
     def _working_key(book: Runbook) -> str:
@@ -285,10 +314,15 @@ class FlowOpsUI:
         with st.form(f"flowops:metadata:{book.id}"):
             name = st.text_input("Name", value=working.name, disabled=not editable)
             description = st.text_area(
-                "Description", value=working.description, disabled=not editable, height=80
+                "Description",
+                value=working.description,
+                disabled=not editable,
+                height=80,
             )
             tags = st.text_input(
-                "Tags (comma separated)", value=", ".join(working.tags), disabled=not editable
+                "Tags (comma separated)",
+                value=", ".join(working.tags),
+                disabled=not editable,
             )
             environments = st.multiselect(
                 "Allowed environments",
@@ -318,10 +352,14 @@ class FlowOpsUI:
             key=f"flowops:parameters:{book.id}:{revision}",
         )
         if st.button(
-            "Apply parameters", disabled=not editable, key=f"flowops:parameters-apply:{book.id}"
+            "Apply parameters",
+            disabled=not editable,
+            key=f"flowops:parameters-apply:{book.id}",
         ):
             raw = self._json_object(parameter_json, label="Parameter schema")
-            working.parameters = {key: Parameter.model_validate(value) for key, value in raw.items()}
+            working.parameters = {
+                key: Parameter.model_validate(value) for key, value in raw.items()
+            }
             self._store_working(working, revision)
             st.rerun()
 
@@ -341,7 +379,9 @@ class FlowOpsUI:
                 f"permissions {', '.join(metadata.required_permissions) or 'provider policy'}"
             )
         if st.button(
-            "Insert before End", disabled=not editable, key=f"flowops:add-node:{book.id}"
+            "Insert before End",
+            disabled=not editable,
+            key=f"flowops:add-node:{book.id}",
         ):
             end = next((node for node in working.nodes if node.action == "core.end"), None)
             if end is None:
@@ -358,8 +398,6 @@ class FlowOpsUI:
             for edge in incoming:
                 edge.target = node_id
             working.edges.extend(incoming)
-            from flowops.domain.models import Edge
-
             working.edges.append(Edge(source=node_id, target=end.id))
             working.nodes.append(node)
             self._store_working(working, revision)
@@ -380,16 +418,34 @@ class FlowOpsUI:
             with st.form(f"flowops:node-form:{book.id}:{selected_node_id}"):
                 label = st.text_input("Label", value=node.label, disabled=not editable)
                 enabled = st.checkbox("Enabled", value=node.enabled, disabled=not editable)
-                failure = st.selectbox(
-                    "Failure policy",
-                    ["STOP", "CONTINUE", "RETRY", "FAIL_BRANCH", "MANUAL_INTERVENTION"],
-                    index=[
-                        "STOP",
-                        "CONTINUE",
-                        "RETRY",
-                        "FAIL_BRANCH",
-                        "MANUAL_INTERVENTION",
-                    ].index(node.failure_policy),
+                failure = cast(
+                    FailurePolicy,
+                    st.selectbox(
+                        "Failure policy",
+                        FAILURE_POLICIES,
+                        index=FAILURE_POLICIES.index(node.failure_policy),
+                        disabled=not editable,
+                    ),
+                )
+                retry_attempts = st.number_input(
+                    "Retry max attempts",
+                    min_value=1,
+                    max_value=5,
+                    value=node.retry.max_attempts,
+                    step=1,
+                    disabled=not editable,
+                )
+                retry_backoff = st.number_input(
+                    "Retry backoff seconds",
+                    min_value=0.0,
+                    max_value=10.0,
+                    value=float(node.retry.backoff_seconds),
+                    step=0.1,
+                    disabled=not editable,
+                )
+                retry_codes = st.text_input(
+                    "Retry codes (comma separated)",
+                    value=", ".join(node.retry.retry_codes),
                     disabled=not editable,
                 )
                 config_text = st.text_area(
@@ -399,19 +455,26 @@ class FlowOpsUI:
                     disabled=not editable,
                 )
                 node_applied = st.form_submit_button(
-                    "Apply node properties", disabled=not editable
+                    "Apply node properties",
+                    disabled=not editable,
                 )
             if node_applied:
                 parsed = self._json_object(config_text, label="Node configuration")
                 node.label = label[:120]
                 node.enabled = enabled
                 node.failure_policy = failure
+                node.retry.max_attempts = int(retry_attempts)
+                node.retry.backoff_seconds = float(retry_backoff)
+                node.retry.retry_codes = [
+                    code.strip() for code in retry_codes.split(",") if code.strip()
+                ]
                 node.config = parsed
                 self._store_working(working, revision)
                 st.rerun()
             if editable and node.action not in {"core.start", "core.end"}:
                 if st.button(
-                    "Remove selected node", key=f"flowops:remove:{book.id}:{node.id}"
+                    "Remove selected node",
+                    key=f"flowops:remove:{book.id}:{node.id}",
                 ):
                     parents = [edge.source for edge in working.edges if edge.target == node.id]
                     children = [edge.target for edge in working.edges if edge.source == node.id]
@@ -421,8 +484,6 @@ class FlowOpsUI:
                         for edge in working.edges
                         if edge.source != node.id and edge.target != node.id
                     ]
-                    from flowops.domain.models import Edge
-
                     for parent in parents:
                         for child in children:
                             if parent != child:
@@ -446,7 +507,9 @@ class FlowOpsUI:
             order = validate_graph(working, self.runtime.registry)
             st.success(f"Valid workflow: {len(order)} nodes.")
         if columns[1].button(
-            "Save draft", disabled=not editable, key=f"flowops:save:{book.id}"
+            "Save draft",
+            disabled=not editable,
+            key=f"flowops:save:{book.id}",
         ):
             validate_graph(working, self.runtime.registry)
             new_revision = self.repository.save_draft(working, self.user.id, revision)
@@ -473,16 +536,18 @@ class FlowOpsUI:
             default = spec.default
             if spec.type == "boolean":
                 value: Any = st.checkbox(
-                    label, value=bool(default) if default is not None else False
+                    label,
+                    value=bool(default) if default is not None else False,
                 )
             elif spec.type == "integer":
                 value = st.number_input(label, value=int(default or 0), step=1)
             elif spec.type == "number":
                 value = st.number_input(label, value=float(default or 0.0))
             elif spec.type in {"array", "object"}:
-                empty = [] if spec.type == "array" else {}
+                empty: list[Any] | dict[str, Any] = [] if spec.type == "array" else {}
                 value = st.text_area(
-                    label, value=json.dumps(default if default is not None else empty)
+                    label,
+                    value=json.dumps(default if default is not None else empty),
                 )
             else:
                 value = st.text_input(label, value="" if default is None else str(default))
@@ -516,12 +581,31 @@ class FlowOpsUI:
         version = st.selectbox("Version", versions, key=f"flowops:execute-version:{draft.id}")
         book = self.repository.version(draft.id, version)
         require(self.user, f"runbook.execute.{self.aws.environment}", book)
+        st.caption(
+            "FlowOps simulation prevents mutation calls and can simulate state transitions. "
+            "It is separate from any AWS service-native DryRun option."
+        )
+        if self.aws.environment == "production":
+            st.warning(
+                f"PRODUCTION target: account {self.aws.account_id}, region {self.aws.region}. "
+                "Live execution requires an explicit typed confirmation."
+            )
         with st.form(f"flowops:execute-form:{book.id}:{version}"):
             values = self._parameter_inputs(book)
             dry_run = st.checkbox("FlowOps simulation", value=True)
             reason = st.text_input("Reason / change reference")
+            production_word = ""
+            production_account = ""
+            if self.aws.environment == "production":
+                production_word = st.text_input("Type PRODUCTION for a live production run")
+                production_account = st.text_input("Type the 12-digit target AWS account")
             submitted = st.form_submit_button("Submit execution", type="primary")
         if submitted:
+            if self.aws.environment == "production" and not dry_run:
+                if production_word != "PRODUCTION" or production_account != self.aws.account_id:
+                    raise WorkflowValidationError(
+                        "Live production execution requires PRODUCTION and the exact target account ID."
+                    )
             parameters = self._coerce_parameters(values)
             execution = self.runtime.engine.submit(
                 book,
@@ -600,7 +684,7 @@ class FlowOpsUI:
         columns = st.columns(2)
         if execution.status in {Status.PENDING, Status.RUNNING, Status.WAITING_APPROVAL}:
             if columns[0].button("Cancel", key=f"flowops:cancel:{execution.id}"):
-                self.runtime.engine.store.cancel(execution.id, self.user.id)
+                self.runtime.engine.cancel(execution.id, self.user)
                 st.rerun()
         if execution.status in {Status.SUCCESS, Status.FAILED, Status.CANCELLED}:
             if columns[1].button("Run again", key=f"flowops:rerun:{execution.id}"):
@@ -626,7 +710,7 @@ class FlowOpsUI:
         import streamlit as st
 
         st.header("Approvals")
-        approvals = []
+        approvals: list[dict[str, Any]] = []
         for approval in self.runtime.engine.store.pending_approvals():
             execution = self.runtime.engine.store.get(approval["execution_id"])
             permission = f"runbook.approve.{execution.aws_context.environment}"
