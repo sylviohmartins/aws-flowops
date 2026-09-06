@@ -144,7 +144,9 @@ def test_failure_editor_applies_replaces_and_respects_edit_permission(
     assert "compensation" in fake.captions[-1]
     assert fake.rerun_called is True
     working = admin._working_draft(book, revision)
-    failure_edges = [edge for edge in working.edges if edge.source == "worker" and edge.branch == "failure"]
+    failure_edges = [
+        edge for edge in working.edges if edge.source == "worker" and edge.branch == "failure"
+    ]
     assert failure_edges == [Edge(source="worker", target="new", branch="failure")]
 
     fake.rerun_called = False
