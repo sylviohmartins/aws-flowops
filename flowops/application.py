@@ -54,7 +54,9 @@ class FlowOpsRuntime:
             service, separator, operation = key.partition(".")
             if not separator or not service or not operation or "." in operation:
                 raise ValueError("Generic AWS allowlist entries must use service.operation.")
-            register_generic(registry, catalog, backend, service, operation, generic_allowlist or set())
+            register_generic(
+                registry, catalog, backend, service, operation, generic_allowlist or set()
+            )
         engine = Engine(repository, registry, policy=policy or PolicyEngine())
         runtime = cls(
             repository,
