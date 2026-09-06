@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aws-flowops.local/schemas/promotion-decision.schema.json",
+  "type": "object",
+  "required": ["riskTier", "validatedSha", "validatedTree", "mainBeforePromotion", "allRequiredChecksPassed", "forceRequired", "decision"],
+  "properties": {
+    "riskTier": {"enum": ["low", "moderate", "high", "consequential"]},
+    "validatedSha": {"type": "string"},
+    "validatedTree": {"type": "string"},
+    "mainBeforePromotion": {"type": "string"},
+    "allRequiredChecksPassed": {"type": "boolean"},
+    "forceRequired": {"type": "boolean"},
+    "decision": {"enum": ["BLOCKED", "READY_FOR_PROMOTION", "PROMOTED"]}
+  }
+}

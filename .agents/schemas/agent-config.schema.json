@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aws-flowops.local/schemas/agent-config.schema.json",
+  "type": "object",
+  "required": ["version", "canonicalInstructions", "execution", "promotion", "context", "commands", "safety"],
+  "properties": {
+    "version": {"const": 1},
+    "canonicalInstructions": {"type": "string"},
+    "execution": {"type": "object", "required": ["strategy", "workingBranchRequired", "pullRequestRequired", "promotionStyle"]},
+    "promotion": {"type": "object", "required": ["targetBranch", "requireAllChecks", "requireExactValidatedTree", "allowForceUpdateMain"]},
+    "context": {"type": "object", "required": ["loadPolicy", "skillsRoot", "rulesRoot", "memoryRoot", "activeRunsRoot", "completionContract"]},
+    "commands": {"type": "object"},
+    "safety": {"type": "object"}
+  },
+  "additionalProperties": true
+}

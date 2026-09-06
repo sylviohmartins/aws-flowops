@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aws-flowops.local/schemas/task-run.schema.json",
+  "type": "object",
+  "required": ["id", "phase", "requirements", "tasks", "checks", "failures", "checkpoint"],
+  "properties": {
+    "id": {"type": "string", "minLength": 1},
+    "phase": {"type": "string"},
+    "requirements": {"type": "array"},
+    "tasks": {"type": "array"},
+    "checks": {"type": "array"},
+    "failures": {"type": "array"},
+    "checkpoint": {"type": "object", "required": ["nextAction"]}
+  },
+  "additionalProperties": true
+}
