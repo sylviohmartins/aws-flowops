@@ -196,6 +196,7 @@ attributes quando a API suporta esse recurso.
 
 ```bash
 python -m pip install -e '.[dev,postgres]'
+python scripts/agents/validate.py
 ruff format --check .
 ruff check .
 mypy flowops
@@ -220,6 +221,7 @@ comportamento específicos, independentemente do percentual agregado.
 ## Documentação
 
 - `docs/ARCHITECTURE.md` — camadas, runtime e fluxo de execução;
+- `docs/AGENT_ENGINEERING.md` — instruções persistentes, skills, agentes, prompts, validações e fluxo de promoção para trabalho assistido por IA;
 - `docs/INTEGRATION.md` — integração em Streamlit existente;
 - `docs/SECURITY.md` — credenciais, RBAC, aprovações, secrets e produção;
 - `docs/IAM.md` — least privilege e exemplo de policy;
