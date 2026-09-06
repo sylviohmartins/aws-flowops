@@ -50,7 +50,9 @@ class Repository:
     @classmethod
     def from_environment(cls) -> Repository:
         """Resolve storage without exposing repository internals to an embedding host."""
-        configured = os.getenv("FLOWOPS_DATABASE_URL") or os.getenv("FLOWOPS_DATABASE") or "flowops.db"
+        configured = (
+            os.getenv("FLOWOPS_DATABASE_URL") or os.getenv("FLOWOPS_DATABASE") or "flowops.db"
+        )
         return cls(configured)
 
     @contextmanager
