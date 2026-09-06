@@ -9,9 +9,7 @@ def valid_run() -> dict[str, object]:
     return {
         "id": "agent-contract-test",
         "phase": "VALIDATING",
-        "requirements": [
-            {"id": "REQ-001", "status": "DONE", "evidence": ["test:agent-contract"]}
-        ],
+        "requirements": [{"id": "REQ-001", "status": "DONE", "evidence": ["test:agent-contract"]}],
         "tasks": [
             {
                 "id": "TASK-001",
