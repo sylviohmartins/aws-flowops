@@ -29,6 +29,7 @@ class ActionContext:
     node_id: str
     aws: AWSContext
     dry_run: bool
+    correlation_context: dict[str, str] = field(default_factory=dict)
 
 
 class Action(Protocol):
