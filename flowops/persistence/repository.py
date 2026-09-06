@@ -62,31 +62,31 @@ class Repository:
                 raise RuntimeError(
                     "PostgreSQL requires the optional dependency: pip install 'aws-flowops[postgres]'"
                 ) from exc
-            connection = psycopg.connect(self._database, connect_timeout=5)
-            db = PostgresConnection(connection)
+            pg_connection = psycopg.connect(self._database, connect_timeout=5)
+            db = PostgresConnection(pg_connection)
             try:
                 yield db
-                connection.commit()
+                pg_connection.commit()
             except BaseException:
-                connection.rollback()
+                pg_connection.rollback()
                 raise
             finally:
-                connection.close()
+                pg_connection.close()
             return
 
-        connection = sqlite3.connect(self._database, timeout=30)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys=ON")
-        connection.execute("PRAGMA busy_timeout=30000")
+        sqlite_connection = sqlite3.connect(self._database, timeout=30)
+        sqlite_connection.row_factory = sqlite3.Row
+        sqlite_connection.execute("PRAGMA foreign_keys=ON")
+        sqlite_connection.execute("PRAGMA busy_timeout=30000")
         try:
-            connection.execute("BEGIN IMMEDIATE")
-            yield connection
-            connection.commit()
+            sqlite_connection.execute("BEGIN IMMEDIATE")
+            yield sqlite_connection
+            sqlite_connection.commit()
         except BaseException:
-            connection.rollback()
+            sqlite_connection.rollback()
             raise
         finally:
-            connection.close()
+            sqlite_connection.close()
 
     def migrate(self) -> None:
         """Apply each numbered SQL migration once, within a transaction."""
@@ -264,9 +264,16 @@ class Repository:
             )
 
     def events(self, execution_id: str | None = None, limit: int = 500) -> list[dict[str, Any]]:
+        bounded_limit = min(limit, 2000)
         with self.transaction() as db:
-            rows = db.execute(
-                "SELECT * FROM audit_events WHERE (? IS NULL OR execution_id=?) ORDER BY created_at DESC LIMIT ?",
-                (execution_id, execution_id, min(limit, 2000)),
-            ).fetchall()
+            if execution_id is None:
+                rows = db.execute(
+                    "SELECT * FROM audit_events ORDER BY created_at DESC LIMIT ?",
+                    (bounded_limit,),
+                ).fetchall()
+            else:
+                rows = db.execute(
+                    "SELECT * FROM audit_events WHERE execution_id=? ORDER BY created_at DESC LIMIT ?",
+                    (execution_id, bounded_limit),
+                ).fetchall()
         return [dict(row) | {"body": json.loads(row["body"])} for row in rows]
