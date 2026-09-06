@@ -83,11 +83,16 @@ class StreamlitSmokeTests(unittest.TestCase):
                 store = ExecutionStore(Repository(database))
                 deadline = time.monotonic() + 3
                 executions = store.history()
-                while executions and executions[0].status not in {
-                    Status.SUCCESS,
-                    Status.FAILED,
-                    Status.CANCELLED,
-                } and time.monotonic() < deadline:
+                while (
+                    executions
+                    and executions[0].status
+                    not in {
+                        Status.SUCCESS,
+                        Status.FAILED,
+                        Status.CANCELLED,
+                    }
+                    and time.monotonic() < deadline
+                ):
                     time.sleep(0.05)
                     executions = store.history()
                 self.assertEqual(len(executions), 1)
