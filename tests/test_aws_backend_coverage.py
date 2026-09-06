@@ -91,9 +91,12 @@ class FakePaginator:
         self.resume_token = resume_token
         self.calls: list[dict[str, Any]] = []
 
-    def paginate(self, **kwargs: Any):
+    def paginate(self, **kwargs: Any) -> FakePaginator:
         self.calls.append(kwargs)
-        yield from self.pages
+        return self
+
+    def __iter__(self):
+        return iter(self.pages)
 
 
 class InvokeClient(FakeServiceClient):
@@ -129,9 +132,7 @@ def test_resource_scope_supports_nested_cn_and_rejects_endpoint_tricks() -> None
         context,
     )
     cn = aws_context(region="cn-north-1")
-    resource_scope(
-        {"QueueUrl": "https://sqs.cn-north-1.amazonaws.com.cn/123456789012/q"}, cn
-    )
+    resource_scope({"QueueUrl": "https://sqs.cn-north-1.amazonaws.com.cn/123456789012/q"}, cn)
 
     invalid_urls = [
         "http://sqs.sa-east-1.amazonaws.com/123456789012/q",
@@ -231,7 +232,9 @@ def test_client_rejects_sts_account_and_refreshes_expiring_session() -> None:
     assert ("run", "old") not in backend.clients
 
 
-def test_client_assume_role_uses_external_id_and_temporary_session(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_client_assume_role_uses_external_id_and_temporary_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import boto3
 
     expiration = datetime.now(UTC) + timedelta(hours=1)
@@ -327,7 +330,9 @@ def test_invoke_s3_owner_guards_direct_and_pagination(monkeypatch: pytest.Monkey
         )
 
 
-def test_invoke_translates_client_timeout_and_botocore_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_invoke_translates_client_timeout_and_botocore_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from botocore.exceptions import ClientError, EndpointConnectionError, ReadTimeoutError
 
     trusted = aws_context()
