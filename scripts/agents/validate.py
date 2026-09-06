@@ -4,7 +4,10 @@ import json
 import re
 from pathlib import Path
 
-from scripts.agents.completion_gate import evaluate_task_run
+if __package__:
+    from scripts.agents.completion_gate import evaluate_task_run
+else:
+    from completion_gate import evaluate_task_run
 
 ROOT = Path(__file__).resolve().parents[2]
 
