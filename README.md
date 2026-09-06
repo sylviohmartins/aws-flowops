@@ -117,7 +117,7 @@ Não coloque access keys, secret keys, session tokens ou segredos em runbooks, p
 exportação ou código. Use IAM roles, profiles ou o mecanismo de credenciais da plataforma em
 que o Streamlit estiver implantado.
 
-Veja `docs/SECURITY.md` e `docs/OPERATIONS.md` para o modelo de segurança e a operação em
+Veja `docs/SECURITY.md`, `docs/IAM.md` e `docs/OPERATIONS.md` para segurança e operação em
 produção.
 
 ## Produção
@@ -168,7 +168,7 @@ python -m pip install -e '.[dev,postgres]'
 ruff format --check .
 ruff check .
 mypy flowops
-pytest --cov=flowops --cov-report=term-missing
+pytest --cov=flowops --cov-report=term-missing --cov-fail-under=60
 bandit -r flowops -ll
 pip-audit
 python -m build
@@ -182,13 +182,17 @@ pytest tests/test_postgres.py -v
 ```
 
 A pipeline `.github/workflows/quality.yml` executa todos esses gates e provisiona PostgreSQL
-16 como service container.
+16 como service container. O smoke test Streamlit percorre todas as páginas principais do
+workspace.
 
 ## Documentação
 
 - `docs/ARCHITECTURE.md` — camadas, runtime e fluxo de execução;
+- `docs/INTEGRATION.md` — integração em Streamlit existente;
 - `docs/SECURITY.md` — credenciais, RBAC, aprovações, secrets e produção;
+- `docs/IAM.md` — least privilege e exemplo de policy;
 - `docs/OPERATIONS.md` — configuração, banco, troubleshooting e implantação;
+- `docs/TESTING.md` — estratégia de testes e gates;
 - `docs/PROGRESS.md` — evidências incrementais de implementação;
 - `docs/adr/` — decisões arquiteturais 001–010.
 
