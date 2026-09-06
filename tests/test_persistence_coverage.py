@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -146,7 +147,13 @@ def test_execution_checkpoint_cancel_and_non_mapping_detail(tmp_path: Path) -> N
 
     assert store.cancelled("missing") is False
     store.checkpoint(execution, "node", Status.SUCCESS, ["value"])  # type: ignore[arg-type]
-    assert store.nodes(execution.id)["node"]["status"] == Status.SUCCESS
+    with repo.transaction() as db:
+        row = db.execute(
+            "SELECT body,status FROM node_executions WHERE execution_id=? AND node_id=?",
+            (execution.id, "node"),
+        ).fetchone()
+    assert json.loads(row["body"]) == ["value"]
+    assert row["status"] == Status.SUCCESS.value
 
     assert store.claim(execution.id) is True
     store.cancel(execution.id, "operator")
