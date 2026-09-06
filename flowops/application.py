@@ -28,7 +28,7 @@ class FlowOpsRuntime:
     backend: Any
 
     @classmethod
-    def demo(cls, repository: Repository) -> "FlowOpsRuntime":
+    def demo(cls, repository: Repository) -> FlowOpsRuntime:
         backend = DemoBackend(repository)
         registry = build_registry(backend)
         engine = Engine(repository, registry, policy=PolicyEngine(two_person=False))
@@ -43,7 +43,7 @@ class FlowOpsRuntime:
         contexts: list[AWSContext],
         *,
         policy: PolicyEngine | None = None,
-    ) -> "FlowOpsRuntime":
+    ) -> FlowOpsRuntime:
         if not contexts or any(context.mode != "aws" for context in contexts):
             raise ValueError("Trusted AWS contexts are required for an AWS runtime.")
         backend = BotoBackend(contexts)
@@ -61,7 +61,7 @@ class FlowOpsRuntime:
         *,
         policy: PolicyEngine | None = None,
         backend: Any = None,
-    ) -> "FlowOpsRuntime":
+    ) -> FlowOpsRuntime:
         engine = Engine(repository, registry, policy=policy or PolicyEngine())
         runtime = cls(repository, registry, engine, LocalWorker(engine), backend)
         runtime.worker.dispatch_pending()
