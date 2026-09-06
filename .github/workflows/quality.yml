@@ -44,7 +44,7 @@ jobs:
         run: mypy flowops
       - name: Tests and coverage
         if: always()
-        run: pytest --cov=flowops --cov-report=term-missing --cov-report=xml --cov-fail-under=76
+        run: pytest --cov=flowops --cov-report=term-missing --cov-report=xml --cov-fail-under=77
       - name: Security
         if: always()
         run: bandit -r flowops -ll
