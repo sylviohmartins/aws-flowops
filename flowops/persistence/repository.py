@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -45,6 +46,12 @@ class Repository:
         if self.backend == "sqlite" and configured == ":memory:":
             raise ValueError("Use a temporary database file: workers require shared persistence.")
         self.migrate()
+
+    @classmethod
+    def from_environment(cls) -> Repository:
+        """Resolve storage without exposing repository internals to an embedding host."""
+        configured = os.getenv("FLOWOPS_DATABASE_URL") or os.getenv("FLOWOPS_DATABASE") or "flowops.db"
+        return cls(configured)
 
     @contextmanager
     def transaction(self) -> Iterator[Any]:
