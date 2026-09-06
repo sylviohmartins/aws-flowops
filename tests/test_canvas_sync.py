@@ -3,6 +3,7 @@ from typing import Any
 from unittest.mock import patch
 
 import streamlit_flow
+from streamlit_flow.elements import StreamlitFlowEdge
 
 from flowops.domain.models import Edge, Node
 from flowops.streamlit.canvas import workflow_canvas
@@ -35,3 +36,14 @@ def test_stale_component_value_cannot_discard_external_edits() -> None:
             accepted, _ = workflow_canvas(accepted)
             assert keys[1] == keys[2]
             assert accepted == edited
+            # React Flow creates edges without the Python adapter's deletion flags.
+            browser[keys[-1]].edges.append(StreamlitFlowEdge("fresh", "start", "end"))
+            connected, _ = workflow_canvas(accepted)
+            assert len(connected.edges) == 3
+            previous_key = keys[-1]
+            refreshed, _ = workflow_canvas(connected)
+            assert keys[-1] != previous_key
+            assert browser[keys[-1]].edges[-1].deletable is True
+            assert refreshed == connected
+            workflow_canvas(connected, readonly=True)
+            assert all(not edge.deletable for edge in browser[keys[-1]].edges)

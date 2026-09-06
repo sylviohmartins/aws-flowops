@@ -415,6 +415,8 @@ class FlowOpsUI:
             readonly=not editable,
         )
         self._store_working(canvas_book, revision)
+        if canvas_book.edges != working.edges:
+            st.rerun()
         working = canvas_book
         selection_key = f"flowops:node:{book.id}"
         canvas_selection_key = f"flowops:canvas-selection:{book.id}"

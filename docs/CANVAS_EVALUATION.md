@@ -11,7 +11,10 @@ traz vantagem funcional para este contrato. Não há motivo comprovado para mant
 frontend independente ou criar outro componente neste projeto.
 
 O README de 1.6.1 alerta sobre memória e loops se o estado for reinicializado a cada rerun.
-O adaptador conserva `StreamlitFlowState` e só troca a instância em mudanças externas.
+O adaptador conserva `StreamlitFlowState` e só troca a instância em mudanças externas. Essas
+mudanças também avançam uma revisão na chave do widget: o wrapper 1.6.1 pode devolver o valor
+anterior enquanto recebe novos props, descartando um nó recém-inserido se a identidade do
+widget não mudar. Movimentos/seleções recebidos do navegador conservam a revisão e o iframe.
 O pacote fica atrás de `workflow_canvas`; ações, políticas, identidade e execução nunca
 residem no canvas. Conteúdo de nós é escapado; a edição livre de Markdown fica desligada.
 Retornos do navegador podem alterar posições, seleção e conexões, nunca configurações AWS.

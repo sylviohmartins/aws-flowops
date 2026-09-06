@@ -65,7 +65,10 @@ verde na árvore candidata e novamente no SHA de `main`.
 
 Não há migration nova, mudança em credenciais ou provisionamento AWS nesta etapa. Definições e
 IDs de checkpoints existentes são preservados. A atualização acrescenta controles de UI,
-contagem de impacto, reconciliação, retenção de resultados e dreno periódico de PENDING.
+contagem de impacto, reconciliação, retenção de resultados e dreno periódico de PENDING. A fila
+consulta os IDs pendentes antes de aplicar seu limite por rodada; execuções concluídas no
+histórico não ocultam trabalho antigo. O comportamento é exercitado em SQLite e PostgreSQL
+por `test_pending_queue.py`, com 2.000 registros concluídos mais recentes que o pendente.
 
 Rollback do aplicativo: retornar ao commit validado anterior, após drenar as execuções que
 usam a nova reconciliação manual. Não restaurar ou reescrever versões publicadas. A aprovação

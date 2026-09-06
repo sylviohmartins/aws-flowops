@@ -144,4 +144,7 @@ def workflow_canvas(
     st.session_state[hash_key] = digest(
         {"book": result.model_dump(), "readonly": readonly, "statuses": statuses or {}}
     )
+    if result.edges != book.edges:
+        # New browser edges omit deletable/markers; normalize them on the next render.
+        st.session_state.pop(hash_key, None)
     return result, selected
