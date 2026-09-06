@@ -6,7 +6,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from threading import Event, Lock, Thread
 
 from flowops.core.engine import Engine
-from flowops.domain.models import Execution, Status
+from flowops.domain.models import Execution
 
 
 class LocalWorker:
@@ -60,9 +60,8 @@ class LocalWorker:
             return future
 
     def dispatch_pending(self) -> None:
-        for execution in self.engine.store.history(2000):
-            if execution.status == Status.PENDING:
-                self.enqueue(execution.id)
+        for execution_id in self.engine.store.pending_ids():
+            self.enqueue(execution_id)
 
     def close(self, *, wait: bool = True) -> None:
         self.stopping.set()

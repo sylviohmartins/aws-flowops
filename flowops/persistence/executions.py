@@ -78,6 +78,15 @@ class ExecutionStore:
             ).fetchall()
         return [Execution.model_validate_json(r["body"]) for r in rows]
 
+    def pending_ids(self, limit: int = 2000) -> list[str]:
+        """Filter the durable queue before limiting; completed history cannot hide work."""
+        with self.repository.transaction() as db:
+            rows = db.execute(
+                "SELECT id FROM executions WHERE status=? ORDER BY created_at,id LIMIT ?",
+                (Status.PENDING.value, max(0, min(limit, 2000))),
+            ).fetchall()
+        return [str(row["id"]) for row in rows]
+
     def claim(self, execution_id: str) -> bool:
         with self.repository.transaction() as db:
             row = db.execute(

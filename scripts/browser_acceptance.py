@@ -159,7 +159,7 @@ def journey(page: Page, database: Path) -> None:
     frame_box = page.locator('iframe[title="streamlit_flow.streamlit_flow"]').bounding_box()
     assert frame_box
     page.mouse.click(frame_box["x"] + point["x"], frame_box["y"] + point["y"], button="right")
-    canvas.get_by_role("button", name="Delete Edge", exact=True).click()
+    canvas.get_by_role("button", name=re.compile("Delete Edge$")).click()
     settled(page)
     expect(canvas.locator(".react-flow__edge")).to_have_count(edge_count)
 
