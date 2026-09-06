@@ -9,7 +9,7 @@ import math
 from typing import Any
 
 from flowops.domain.errors import WorkflowValidationError
-from flowops.domain.models import Edge, Runbook
+from flowops.domain.models import Edge, Runbook, new_id
 from flowops.persistence.repository import digest
 
 
@@ -17,7 +17,8 @@ def apply_canvas(
     book: Runbook, payload: dict[str, Any], *, readonly: bool = False
 ) -> tuple[Runbook, str | None]:
     if readonly:
-        return book.model_copy(deep=True), None
+        selected = payload.get("selected_id")
+        return book.model_copy(deep=True), selected if selected in {n.id for n in book.nodes} else None
     result = book.model_copy(deep=True)
     known = {node.id: node for node in result.nodes}
     received = payload.get("nodes", [])
@@ -43,6 +44,22 @@ def apply_canvas(
         raise WorkflowValidationError("Canvas connection refers to a removed node.")
     selected = payload.get("selected_id")
     return result, selected if selected in ids else None
+
+
+def duplicate_node(book: Runbook, node_id: str) -> tuple[Runbook, str]:
+    """Copy definition and layout without inventing execution edges."""
+    result = book.model_copy(deep=True)
+    source = next((node for node in result.nodes if node.id == node_id), None)
+    if source is None or source.action in {"core.start", "core.end"}:
+        raise WorkflowValidationError("Select an action or logic node to duplicate.")
+    if len(result.nodes) >= 200:
+        raise WorkflowValidationError("Canvas size limit exceeded.")
+    clone = source.model_copy(deep=True)
+    clone.id = f"n_{new_id()[:12]}"
+    clone.label = f"{source.label or source.id} (copy)"[:120]
+    clone.position = (source.position[0] + 40, source.position[1] + 100)
+    result.nodes.append(clone)
+    return result, clone.id
 
 
 def workflow_canvas(

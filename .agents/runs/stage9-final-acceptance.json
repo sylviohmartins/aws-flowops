@@ -1,0 +1,64 @@
+{
+  "id": "stage9-final-acceptance",
+  "phase": "implementation",
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "description": "Canvas and mapper browser journey",
+      "status": "IN_PROGRESS"
+    },
+    {
+      "id": "REQ-002",
+      "description": "Lambda CURRENT vs PROPOSED review",
+      "status": "IN_PROGRESS"
+    },
+    {
+      "id": "REQ-003",
+      "description": "Bulk limits and reconciliation",
+      "status": "IN_PROGRESS"
+    },
+    {
+      "id": "REQ-004",
+      "description": "Exact CI and regression evidence",
+      "status": "IN_PROGRESS"
+    },
+    {
+      "id": "REQ-005",
+      "description": "Complete acceptance matrix and operational documentation",
+      "status": "IN_PROGRESS"
+    },
+    {
+      "id": "REQ-006",
+      "description": "One stage commit pushed and main CI verified",
+      "status": "IN_PROGRESS"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "TASK-9",
+      "status": "IN_PROGRESS",
+      "requirementIds": [
+        "REQ-001",
+        "REQ-002",
+        "REQ-003",
+        "REQ-004",
+        "REQ-005",
+        "REQ-006"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "name": "required CI exact branch tree",
+      "status": "PENDING"
+    },
+    {
+      "name": "main SHA CI",
+      "status": "PENDING"
+    }
+  ],
+  "failures": [],
+  "checkpoint": {
+    "nextAction": "Run branch CI, inspect browser evidence and close documented acceptance."
+  }
+}

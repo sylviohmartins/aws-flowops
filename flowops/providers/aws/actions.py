@@ -55,6 +55,13 @@ class AWSAction:
             if catalog and model
             else {"type": "object"},
         )
+        # The Python action accepts JSON values for these SDK string/blob fields.
+        # Expose that adapter contract so the mapper can wire an object/array output.
+        for name in ("MessageBody", "Message", "Payload"):
+            field = self.metadata.input_schema.get("properties", {}).get(name)
+            if isinstance(field, dict):
+                field["type"] = "any"
+                field["oneOf"] = [{"type": value} for value in ("string", "object", "array")]
 
     def prepare(self, config: dict[str, Any]) -> tuple[dict[str, Any], Limits]:
         parameters = copy.deepcopy(config)
@@ -155,6 +162,21 @@ class AWSAction:
         if self.catalog:
             self.catalog.validate(self.spec.service, self.spec.operation, parameters)
 
+    def affected_records(self, config: dict[str, Any]) -> int:
+        """Count AWS batch envelopes before policy, including nested DynamoDB keys."""
+        parameters, _ = self.prepare(config)
+        if "RequestItems" in parameters:
+            return max(1, sum(
+                len(value.get("Keys", [])) if isinstance(value, dict) else len(value)
+                for value in parameters["RequestItems"].values()
+            ))
+        if "Delete" in parameters:
+            return max(1, len(parameters["Delete"].get("Objects", [])))
+        for key in ("Entries", "TransactItems", "Statements", "TransactStatements", "PublishBatchRequestEntries"):
+            if key in parameters:
+                return max(1, len(parameters[key]))
+        return 1
+
     def preview(self, config: dict[str, Any], context: ActionContext) -> Any:
         parameters, limits = self.prepare(config)
         parameters = self._with_correlation(parameters, context)
@@ -188,6 +210,7 @@ class AWSAction:
             result.get("UnprocessedItems")
             or result.get("UnprocessedKeys")
             or result.get("Failed")
+            or result.get("Errors")
             or result.get("FunctionError")
             or any(isinstance(r, dict) and r.get("Error") for r in result.get("Responses", []))
         ):

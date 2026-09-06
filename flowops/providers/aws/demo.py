@@ -22,6 +22,9 @@ SUPPORTED = {
     "sqs.get_queue_attributes",
     "lambda.list_functions",
     "lambda.get_function_configuration",
+    "lambda.get_function",
+    "lambda.list_aliases",
+    "lambda.list_versions_by_function",
     "lambda.invoke",
     "sns.list_topics",
     "sns.publish",
@@ -204,13 +207,23 @@ class DemoBackend:
             }
         if key == "lambda.list_functions":
             return {"Functions": [{"FunctionName": "payment-processor", "Runtime": "python3.12"}]}
-        if key == "lambda.get_function_configuration":
-            return {
+        if key in {"lambda.get_function_configuration", "lambda.get_function"}:
+            configuration = {
                 "FunctionName": p["FunctionName"],
                 "Runtime": "python3.12",
                 "PackageType": "Zip",
                 "RevisionId": "demo-revision",
+                "Version": "$LATEST",
+                "Layers": [],
+                "MemorySize": 128,
+                "Timeout": 3,
+                "CodeSha256": "demo-code-hash",
             }
+            return configuration if key.endswith("get_function_configuration") else {"Configuration": configuration, "Code": {"RepositoryType": "S3"}}
+        if key == "lambda.list_aliases":
+            return {"Aliases": [{"Name": "live", "FunctionVersion": "1", "RevisionId": "demo-alias-revision"}]}
+        if key == "lambda.list_versions_by_function":
+            return {"Versions": [{"FunctionName": p["FunctionName"], "Version": "1", "Runtime": "python3.12"}]}
         if key == "lambda.invoke":
             return {
                 "StatusCode": 200,

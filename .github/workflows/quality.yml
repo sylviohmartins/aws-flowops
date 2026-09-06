@@ -60,3 +60,17 @@ jobs:
       - name: Build
         if: always()
         run: python -m build
+      - name: Install Chromium
+        if: always()
+        run: python -m playwright install --with-deps chromium
+      - name: Browser acceptance
+        if: always()
+        run: python scripts/browser_acceptance.py
+      - name: Browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-evidence
+          path: browser-artifacts/
+          if-no-files-found: ignore
+          retention-days: 14

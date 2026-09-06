@@ -2,7 +2,7 @@
 
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
-from threading import Lock
+from threading import Event, Lock, Thread
 
 from flowops.core.engine import Engine
 from flowops.domain.models import Execution, Status
@@ -23,6 +23,18 @@ class LocalWorker:
         )
         self.futures: dict[str, Future[Execution]] = {}
         self.lock = Lock()
+        self.stopping = Event()
+        self.dispatcher: Thread | None = None
+
+    def start(self) -> None:
+        """Keep durable queued executions moving when another run releases a scope lock."""
+        if self.dispatcher is None:
+            self.dispatcher = Thread(target=self._dispatch_loop, name="flowops-dispatch", daemon=True)
+            self.dispatcher.start()
+
+    def _dispatch_loop(self) -> None:
+        while not self.stopping.wait(0.5):
+            self.dispatch_pending()
 
     def _execute(self, execution_id: str) -> Execution:
         try:
@@ -45,4 +57,7 @@ class LocalWorker:
                 self.enqueue(execution.id)
 
     def close(self) -> None:
+        self.stopping.set()
+        if self.dispatcher is not None:
+            self.dispatcher.join()
         self.pool.shutdown(wait=True, cancel_futures=False)

@@ -22,7 +22,7 @@ from flowops.domain.models import (
 )
 from flowops.persistence.repository import digest
 from flowops.providers.aws.resources import EXPLORERS, explore
-from flowops.streamlit.canvas import workflow_canvas
+from flowops.streamlit.canvas import duplicate_node, workflow_canvas
 from flowops.templates import TEMPLATES
 
 ExportFormat = Literal["yaml", "json"]
@@ -391,8 +391,9 @@ class FlowOpsUI:
                 id=node_id,
                 action=action_id,
                 label=action_id,
-                position=(end.position[0] - 220, end.position[1]),
+                position=end.position,
             )
+            end.position = (end.position[0] + 260, end.position[1])
             incoming = [edge for edge in working.edges if edge.target == end.id]
             working.edges = [edge for edge in working.edges if edge.target != end.id]
             for edge in incoming:
@@ -402,6 +403,26 @@ class FlowOpsUI:
             working.nodes.append(node)
             self._store_working(working, revision)
             st.rerun()
+
+        st.subheader("Canvas")
+        canvas_book, canvas_selected = workflow_canvas(
+            working,
+            key=f"flowops-canvas-{book.id}",
+            readonly=not editable,
+        )
+        self._store_working(canvas_book, revision)
+        working = canvas_book
+        selection_key = f"flowops:node:{book.id}"
+        canvas_selection_key = f"flowops:canvas-selection:{book.id}"
+        pending = st.session_state.pop(f"flowops:pending-node:{book.id}", None)
+        if pending is not None:
+            st.session_state[selection_key] = pending
+        elif canvas_selected and canvas_selected != st.session_state.get(canvas_selection_key):
+            st.session_state[selection_key] = canvas_selected
+        st.session_state[canvas_selection_key] = canvas_selected
+        if st.session_state.get(selection_key) not in {node.id for node in working.nodes}:
+            st.session_state.pop(selection_key, None)
+        st.caption("Drag handles to connect nodes. Select an edge to edit its branch or disconnect it. Duplicated nodes must be connected before saving.")
 
         if working.nodes:
             selected_node_id = st.selectbox(
@@ -472,6 +493,11 @@ class FlowOpsUI:
                 self._store_working(working, revision)
                 st.rerun()
             if editable and node.action not in {"core.start", "core.end"}:
+                if st.button("Duplicate selected node", key=f"flowops:duplicate:{book.id}:{node.id}"):
+                    working, copied_id = duplicate_node(working, node.id)
+                    self._store_working(working, revision)
+                    st.session_state[f"flowops:pending-node:{book.id}"] = copied_id
+                    st.rerun()
                 if st.button(
                     "Remove selected node",
                     key=f"flowops:remove:{book.id}:{node.id}",
@@ -491,14 +517,6 @@ class FlowOpsUI:
                     self._store_working(working, revision)
                     st.rerun()
 
-        st.subheader("Canvas")
-        canvas_book, _ = workflow_canvas(
-            working,
-            key=f"flowops-canvas-{book.id}",
-            readonly=not editable,
-        )
-        self._store_working(canvas_book, revision)
-        working = canvas_book
         dirty = digest(working.model_dump()) != digest(book.model_dump())
         if dirty:
             st.warning("Unsaved editor changes are held only in this UI session.")

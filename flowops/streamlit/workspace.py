@@ -17,6 +17,7 @@ from flowops.domain.errors import FlowOpsError, WorkflowValidationError
 from flowops.domain.models import Status, new_id
 from flowops.observability import metric_snapshot
 from flowops.streamlit.canvas import workflow_canvas
+from flowops.streamlit.lambda_review import render_lambda_review
 from flowops.streamlit.ui import FlowOpsUI
 
 STATUS_SYMBOL = {
@@ -146,6 +147,8 @@ class FlowOpsWorkspaceUI(FlowOpsUI):
         node = next((entry for entry in working.nodes if entry.id == selected_node_id), None)
         if node is None or node.action.startswith("core."):
             return
+
+        render_lambda_review(self, working, node, revision)
 
         metadata = self.runtime.registry.get(node.action).metadata
         targets = [field for field in flatten_schema(metadata.input_schema) if field.path != "$"]
@@ -405,7 +408,16 @@ class FlowOpsWorkspaceUI(FlowOpsUI):
                 self.runtime.engine.cancel(execution.id, self.user)
                 st.rerun()
         if execution.status in {Status.SUCCESS, Status.FAILED, Status.CANCELLED}:
+            production_word = ""
+            production_account = ""
+            if execution.aws_context.environment == "production" and not execution.dry_run:
+                st.warning(f"Live production replay: account {execution.aws_context.account_id}, region {execution.aws_context.region}.")
+                production_word = st.text_input("Type PRODUCTION to run again", key=f"flowops:rerun-word:{execution.id}")
+                production_account = st.text_input("Type the target AWS account to run again", key=f"flowops:rerun-account:{execution.id}")
             if columns[1].button("Run again", key=f"flowops:rerun:{execution.id}"):
+                if execution.aws_context.environment == "production" and not execution.dry_run:
+                    if production_word != "PRODUCTION" or production_account != execution.aws_context.account_id:
+                        raise WorkflowValidationError("Live production replay requires PRODUCTION and the exact target account ID.")
                 require(
                     self.user,
                     f"runbook.execute.{execution.aws_context.environment}",

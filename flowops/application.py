@@ -30,9 +30,10 @@ class FlowOpsRuntime:
     @classmethod
     def demo(cls, repository: Repository) -> FlowOpsRuntime:
         backend = DemoBackend(repository)
-        registry = build_registry(backend)
+        registry = build_registry(backend, catalog=ModelCatalog())
         engine = Engine(repository, registry, policy=PolicyEngine(two_person=False))
         runtime = cls(repository, registry, engine, LocalWorker(engine), backend)
+        runtime.worker.start()
         runtime.worker.dispatch_pending()
         return runtime
 
@@ -65,6 +66,7 @@ class FlowOpsRuntime:
             LocalWorker(engine, on_done=backend.release),
             backend,
         )
+        runtime.worker.start()
         runtime.worker.dispatch_pending()
         return runtime
 
@@ -86,6 +88,7 @@ class FlowOpsRuntime:
             LocalWorker(engine, on_done=release if callable(release) else None),
             backend,
         )
+        runtime.worker.start()
         runtime.worker.dispatch_pending()
         return runtime
 
