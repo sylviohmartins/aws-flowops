@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 from flowops.domain.models import Edge, Node, Parameter, Runbook
 
@@ -50,7 +50,10 @@ def fix_stuck_payment(owner: str, team: str) -> Runbook:
     book.tags = ["payments", "recovery", "demo"]
     book.parameters = {
         "payment_id": Parameter(type="string", description="Payment identifier"),
-        "environment": Parameter(type="string", description="Must match the execution environment"),
+        "environment": Parameter(
+            type="string",
+            description="Must match the execution environment",
+        ),
     }
     book.nodes = [
         Node(id="start", action="core.start", label="Start", position=(40, 180)),
@@ -207,6 +210,70 @@ def replay_event(owner: str, team: str) -> Runbook:
     return book
 
 
+def dlq_redrive(owner: str, team: str) -> Runbook:
+    book = _base(
+        "DLQ Redrive",
+        "Require approval, then start an AWS SQS managed message move task from a DLQ.",
+        owner,
+        team,
+    )
+    book.tags = ["sqs", "dlq", "recovery"]
+    book.parameters = {
+        "source_arn": Parameter(type="string", description="Source dead-letter queue ARN"),
+        "destination_arn": Parameter(
+            type="string",
+            required=False,
+            default=None,
+            description="Optional destination queue ARN; omit to redrive to original queues",
+        ),
+        "max_messages_per_second": Parameter(
+            type="integer",
+            required=False,
+            default=50,
+            description="AWS managed redrive rate limit",
+        ),
+    }
+    book.nodes = [
+        Node(id="start", action="core.start", position=(40, 120)),
+        Node(
+            id="inspect",
+            action="sqs.get_queue_attributes",
+            label="Inspect DLQ",
+            config={
+                "QueueUrl": "{{ params.source_arn }}",
+                "AttributeNames": ["ApproximateNumberOfMessages", "RedrivePolicy"],
+            },
+            position=(280, 120),
+        ),
+        Node(
+            id="approve",
+            action="core.approval",
+            label="Approve DLQ Redrive",
+            config={"message": "Approve starting the managed SQS redrive task"},
+            position=(520, 120),
+        ),
+        Node(
+            id="redrive",
+            action="sqs.start_message_move_task",
+            label="StartMessageMoveTask",
+            config={
+                "SourceArn": "{{ params.source_arn }}",
+                "DestinationArn": "{{ params.destination_arn }}",
+                "MaxNumberOfMessagesPerSecond": "{{ params.max_messages_per_second }}",
+            },
+            position=(760, 120),
+        ),
+        Node(id="end", action="core.end", position=(1000, 120)),
+    ]
+    book.edges = [
+        Edge(source="start", target="inspect"),
+        Edge(source="inspect", target="approve"),
+        Edge(source="approve", target="redrive"),
+        Edge(source="redrive", target="end"),
+    ]
+    return book
+
+
 def dynamodb_record_correction(owner: str, team: str) -> Runbook:
     book = _base(
         "DynamoDB Record Correction",
@@ -266,6 +333,13 @@ TEMPLATES = {
         ),
         RunbookTemplate("lambda-invoke", "Lambda Invoke", "Invoke a Lambda safely", lambda_invoke),
         RunbookTemplate("replay-event", "Replay Event", "Send an SQS event", replay_event),
+        RunbookTemplate(
+            "dlq-redrive",
+            "DLQ Redrive",
+            "Inspect, approve and start a managed SQS redrive task",
+            dlq_redrive,
+            demo_compatible=False,
+        ),
         RunbookTemplate(
             "dynamodb-record-correction",
             "DynamoDB Record Correction",
