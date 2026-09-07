@@ -4,6 +4,10 @@
 
 AWS FlowOps Studio targets Python 3.12+ and keeps business logic outside Streamlit.
 
+For automatic setup, run `python scripts/setup.py --dev --postgres` (or pass the same options
+to `setup.cmd` / `bash setup.sh`). See [Setup](SETUP.md) for install-only/run-only modes and
+the distinction between demo, real AWS and LocalStack. The manual equivalent is:
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate

@@ -39,6 +39,30 @@ embutido em uma aplicação existente.
 
 ## Rodar standalone em modo demo
 
+Com Python 3.12+ instalado, o setup prepara o ambiente e inicia a app:
+
+```powershell
+# Windows (PowerShell ou CMD)
+.\setup.cmd
+```
+
+```bash
+# Linux, macOS ou Git Bash
+bash setup.sh
+```
+
+Alternativa universal: `python scripts/setup.py`. Use `--install-only` para somente instalar,
+`--run-only` para iniciar sem instalar, ou `--dev --postgres` para incluir esses extras.
+Não é necessário ativar o venv. O servidor abre em `http://127.0.0.1:8501`.
+Veja [Setup e execução local](docs/SETUP.md) para todas as opções e troubleshooting.
+
+**Docker e LocalStack não são necessários.** O bootstrap standalone usa o backend demo
+interno. Para AWS real, configure `AWSContext(mode="aws", ...)` na aplicação host; somente
+definir um profile no terminal não troca o modo demo. LocalStack ainda não está integrado e
+endpoints personalizados são ignorados pelo provider AWS.
+
+Se preferir a instalação manual:
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
@@ -246,6 +270,7 @@ comportamento específicos, independentemente do percentual agregado.
 
 ## Documentação
 
+- `docs/SETUP.md` — setup automático, Docker/LocalStack e conexão aos recursos AWS;
 - `docs/ARCHITECTURE.md` — camadas, runtime e fluxo de execução;
 - `docs/AGENT_ENGINEERING.md` — instruções persistentes, skills, agentes, prompts, validações e fluxo de promoção para trabalho assistido por IA;
 - `docs/INTEGRATION.md` — integração em Streamlit existente;

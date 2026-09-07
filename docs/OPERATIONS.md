@@ -7,6 +7,9 @@
 Use SQLite e `AWSContext(mode="demo")`. Não requer credenciais AWS e é adequado para
 avaliação, desenvolvimento e testes funcionais.
 
+`setup.cmd`, `bash setup.sh` ou `python scripts/setup.py` preparam e iniciam esse modo local.
+Veja [Setup](SETUP.md) para opções, Docker/LocalStack e configuração da integração AWS.
+
 ### AWS compartilhado
 
 Use PostgreSQL e `AWSContext(mode="aws")`. O host deve fornecer identidade autenticada,

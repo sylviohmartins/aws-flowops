@@ -10,6 +10,26 @@ concurrency:
   group: quality-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 jobs:
+  setup:
+    name: Setup (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    env:
+      FLOWOPS_TEST_SETUP: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: project with spaces
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install and launch through setup
+        working-directory: project with spaces
+        run: python -m unittest tests.test_setup -v
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 15
