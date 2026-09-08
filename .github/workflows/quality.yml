@@ -32,7 +32,7 @@ jobs:
         run: python -m unittest tests.test_setup -v
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:16
@@ -49,6 +49,7 @@ jobs:
           --health-retries 10
     env:
       FLOWOPS_TEST_POSTGRES_DSN: postgresql://flowops:flowops@localhost:5432/flowops
+      FLOWOPS_TEST_LOCAL_AWS: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -60,7 +61,10 @@ jobs:
         run: python scripts/agents/validate.py
       - name: Install
         run: python -m pip install -e '.[dev,postgres]'
+      - name: Local AWS lab (real Docker Lambda)
+        run: python scripts/setup.py --local --dev --install-only
       - name: Format diagnostics
+        if: always()
         run: ruff format --diff .
       - name: Lint
         if: always()
@@ -86,6 +90,9 @@ jobs:
       - name: Browser acceptance
         if: always()
         run: python scripts/browser_acceptance.py
+      - name: Local lab browser acceptance
+        if: always()
+        run: python -m scripts.browser_local_lab
       - name: Browser evidence
         if: always()
         uses: actions/upload-artifact@v4

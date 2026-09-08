@@ -21,7 +21,9 @@ from flowops.domain.models import (
     new_id,
 )
 from flowops.persistence.repository import digest
-from flowops.providers.aws.resources import EXPLORERS, explore
+from flowops.providers.aws.catalog_store import DynamoRunbookCatalog
+from flowops.providers.aws.resources import EXPLORERS, explore, resource_choices
+from flowops.streamlit.browser_catalog import local_copy, local_records
 from flowops.streamlit.canvas import duplicate_node, workflow_canvas
 from flowops.templates import TEMPLATES
 
@@ -81,6 +83,32 @@ class FlowOpsUI:
             return True
         except FlowOpsError:
             return False
+
+    def _catalog(self) -> DynamoRunbookCatalog | None:
+        if self.aws.mode == "demo" or not hasattr(self.runtime.backend, "client_for_host"):
+            return None
+        try:
+            return DynamoRunbookCatalog(self.runtime.backend, self.aws)
+        except ValueError:
+            return None
+
+    def _browser_key(self) -> str:
+        return digest({"account_id": self.aws.account_id, "user_id": self.user.id})[:24]
+
+    def _sync_catalog(self, book: Runbook) -> str:
+        catalog = self._catalog()
+        if catalog is None:
+            return "demo"
+        result = catalog.save(book)
+        if result.mode == "fallback":
+            # Browser storage is a recovery copy only; Repository remains the source of
+            # durable drafts/executions and never depends on a browser being open.
+            local_records(
+                key=self._browser_key(),
+                command="save",
+                record=local_copy(book),
+            )
+        return result.mode
 
     def _visible_runbooks(self, query: str = "") -> list[Runbook]:
         return [
@@ -181,6 +209,37 @@ class FlowOpsUI:
         can_edit = self._granted("runbook.edit")
         query = st.text_input("Search", key="flowops:runbook-search")
         books = self._visible_runbooks(query)
+        browser_key = self._browser_key()
+        browser_books = local_records(key=browser_key) if self.aws.mode in {"local", "aws"} else []
+        if browser_books:
+            with st.expander(f"Browser-local copies ({len(browser_books)})", expanded=False):
+                st.caption(
+                    "These copies belong only to this browser and origin. They survive a tab/browser "
+                    "restart, "
+                    "but not clearing site data or moving to another device."
+                )
+                local_index = st.selectbox(
+                    "Local copy",
+                    range(len(browser_books)),
+                    format_func=lambda index: (
+                        f"{browser_books[index].get('name', 'Unnamed')} · "
+                        f"v{browser_books[index].get('version', 0)}"
+                    ),
+                    key="flowops:browser-copy-select",
+                )
+                if can_edit and st.button(
+                    "Restore local copy as new draft", key="flowops:browser-copy-restore"
+                ):
+                    raw = browser_books[local_index].get("body")
+                    if not isinstance(raw, dict):
+                        raise WorkflowValidationError("Browser copy has an invalid runbook body.")
+                    restored = clone_runbook(Runbook.model_validate(raw), owner=self.user.id)
+                    restored.name = f"{restored.name} (browser copy)"[:160]
+                    self.repository.save_draft(restored, self.user.id)
+                    self._sync_catalog(restored)
+                    st.session_state["flowops:selected_runbook"] = restored.id
+                    st.success("Browser copy restored as a new draft.")
+                    st.rerun()
         if can_edit:
             with st.expander("Create from template", expanded=not books):
                 template_id = st.selectbox(
@@ -206,6 +265,7 @@ class FlowOpsUI:
                     if name.strip():
                         book.name = name.strip()[:160]
                     self.repository.save_draft(book, self.user.id)
+                    self._sync_catalog(book)
                     st.session_state["flowops:selected_runbook"] = book.id
                     st.success("Runbook created as a draft.")
                     st.rerun()
@@ -221,6 +281,12 @@ class FlowOpsUI:
         )
         st.session_state["flowops:selected_runbook"] = selected
         book, revision = self.repository.get_draft(selected)
+        if can_edit and st.button(
+            "Save this runbook copy in browser", key="flowops:browser-copy-save"
+        ):
+            local_records(key=browser_key, command="save", record=local_copy(book))
+            st.success("Browser copy saved. It is not a substitute for server execution history.")
+            st.rerun()
         versions = self.repository.versions(book.id)
         st.caption(
             f"Draft revision {revision} · Published versions: "
@@ -250,6 +316,7 @@ class FlowOpsUI:
             require(self.user, "runbook.edit", book)
             cloned = clone_runbook(book, owner=self.user.id)
             self.repository.save_draft(cloned, self.user.id)
+            self._sync_catalog(cloned)
             st.session_state["flowops:selected_runbook"] = cloned.id
             st.success("Runbook cloned.")
             st.rerun()
@@ -274,6 +341,7 @@ class FlowOpsUI:
             if "*" not in grants and imported.team not in self.user.teams:
                 imported.team = self.user.teams[0] if self.user.teams else "default"
             self.repository.save_draft(imported, self.user.id)
+            self._sync_catalog(imported)
             st.session_state["flowops:selected_runbook"] = imported.id
             st.success("Runbook imported.")
             st.rerun()
@@ -545,8 +613,9 @@ class FlowOpsUI:
         ):
             validate_graph(working, self.runtime.registry)
             new_revision = self.repository.save_draft(working, self.user.id, revision)
+            catalog_mode = self._sync_catalog(working)
             st.session_state.pop(self._working_key(book), None)
-            st.success(f"Draft revision {new_revision} saved.")
+            st.success(f"Draft revision {new_revision} saved ({catalog_mode}).")
             st.rerun()
         can_publish = self._granted("runbook.publish", book)
         if columns[2].button(
@@ -556,7 +625,8 @@ class FlowOpsUI:
         ):
             validate_graph(book, self.runtime.registry)
             published = self.repository.publish(book.id, self.user.id, revision)
-            st.success(f"Published v{published.version}.")
+            catalog_mode = self._sync_catalog(published)
+            st.success(f"Published v{published.version} ({catalog_mode}).")
             st.rerun()
 
     def _parameter_inputs(self, book: Runbook) -> dict[str, tuple[Parameter, Any]]:
@@ -843,4 +913,9 @@ class FlowOpsUI:
         result = st.session_state.get("flowops:resource-result")
         if result is not None:
             st.json(result, expanded=False)
+            choices = resource_choices(service, result)
+            if choices:
+                st.caption(
+                    f"{len(choices)} recurso(s) encontrado(s). Recursos são listados sem alterações."
+                )
         st.caption("Resource discovery is read-only and runs only after explicit submission.")

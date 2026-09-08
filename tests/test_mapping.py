@@ -105,3 +105,34 @@ def test_mapping_preview_and_graph_type_validation() -> None:
     target.config = apply_mapping({}, "Name", "nodes.source.output.count")
     with pytest.raises(WorkflowValidationError, match="mapping integer -> string"):
         validate_graph(runbook, registry())
+
+
+def test_dynamic_lambda_payload_paths_remain_runtime_checked() -> None:
+    from flowops.providers.aws.actions import build_registry
+    from flowops.providers.aws.catalog import ModelCatalog
+
+    registry = build_registry(object(), catalog=ModelCatalog())
+    runbook = Runbook(
+        name="Lambda output mapping",
+        nodes=[
+            Node(id="start", action="core.start"),
+            Node(id="invoke", action="lambda.invoke", config={"FunctionName": "example"}),
+            Node(
+                id="send",
+                action="sqs.send_message",
+                config={
+                    "QueueUrl": "queue",
+                    "MessageBody": "{{ nodes.invoke.output.Payload.event.payment_id }}",
+                },
+            ),
+            Node(id="end", action="core.end"),
+        ],
+        edges=[
+            Edge(source=a, target=b)
+            for a, b in [("start", "invoke"), ("invoke", "send"), ("send", "end")]
+        ],
+    )
+    validate_graph(runbook, registry)
+    runbook.nodes[2].config["MessageBody"] = "{{ nodes.invoke.output.ExecutedVersion.made_up }}"
+    with pytest.raises(WorkflowValidationError, match="absent from the output schema"):
+        validate_graph(runbook, registry)

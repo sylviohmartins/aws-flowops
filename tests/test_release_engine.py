@@ -289,3 +289,61 @@ class ReleaseEngineTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_switch_default_runs_only_when_no_case_matches_and_survives_approval() -> None:
+    from flowops.domain.models import AWSContext, Edge, Runbook
+
+    fixture = fixtures.EngineTests()
+    fixture.setUp()
+    try:
+        for value, expected in (("expected", "chosen"), ("unknown", "end")):
+            book = Runbook(
+                name="Exclusive switch fallback",
+                nodes=[
+                    Node(id="start", action="core.start"),
+                    Node(
+                        id="switch",
+                        action="core.switch",
+                        config={"value": value, "cases": {"matched": "expected"}},
+                    ),
+                    Node(id="approve", action="core.approval"),
+                    Node(id="chosen", action="core.end"),
+                    Node(id="fallback", action="test.action"),
+                    Node(id="end", action="core.end"),
+                ],
+                edges=[
+                    Edge(source="start", target="switch"),
+                    Edge(source="switch", target="approve", branch="matched"),
+                    Edge(source="approve", target="chosen"),
+                    Edge(source="switch", target="fallback", branch="default"),
+                    Edge(source="fallback", target="end"),
+                ],
+            )
+            revision = fixture.repo.save_draft(book, fixture.actor.id)
+            published = fixture.repo.publish(book.id, fixture.actor.id, revision)
+            execution = fixture.engine.submit(
+                published, fixture.actor, AWSContext(), {}, token=value, dry_run=False
+            )
+            result = fixture.engine.execute(execution.id)
+            if value == "expected":
+                assert result.status == Status.WAITING_APPROVAL
+                approval = fixture.engine.store.pending_approvals()[0]
+                fixture.engine.approve(
+                    execution.id,
+                    "approve",
+                    approval["digest"],
+                    fixture.other,
+                    approved=True,
+                    reason="Reviewed",
+                )
+                result = fixture.engine.execute(execution.id)
+                assert fixture.action.calls == 0
+            else:
+                assert fixture.action.calls == 1
+            assert result.status == Status.SUCCESS
+            assert expected in result.node_outputs
+            skipped = "fallback" if value == "expected" else "approve"
+            assert fixture.engine.store.nodes(execution.id)[skipped]["status"] == Status.SKIPPED
+    finally:
+        fixture.doCleanups()

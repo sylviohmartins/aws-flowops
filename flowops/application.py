@@ -44,6 +44,17 @@ class FlowOpsRuntime:
         return runtime
 
     @classmethod
+    def local(cls, repository: Repository, contexts: list[AWSContext]) -> FlowOpsRuntime:
+        from flowops.providers.aws.local import LocalAWSBackend
+
+        backend = LocalAWSBackend(contexts)
+        registry = build_registry(backend, catalog=ModelCatalog())
+        # The personal lab allows one operator to exercise the approval UI.
+        return cls.from_registry(
+            repository, registry, backend=backend, policy=PolicyEngine(two_person=False)
+        )
+
+    @classmethod
     def aws(
         cls,
         repository: Repository,

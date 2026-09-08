@@ -108,7 +108,7 @@ class AWSContext(Model):
     environment: Literal["dev", "staging", "production"] = "dev"
     account_id: str = Field(default="000000000000", pattern=r"^\d{12}$")
     region: str = Field(default="sa-east-1", pattern=r"^[a-z]{2}(-[a-z]+)+-\d+$")
-    mode: Literal["demo", "aws"] = "demo"
+    mode: Literal["demo", "aws", "local"] = "demo"
     profile: str | None = None
     role_arn: str | None = None
     external_id: str | None = None

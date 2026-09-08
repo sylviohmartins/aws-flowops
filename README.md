@@ -37,6 +37,21 @@ embutido em uma aplicação existente.
 - para modo AWS, credenciais disponíveis ao processo via mecanismos padrão do boto3;
 - para persistência PostgreSQL, o extra `postgres`.
 
+## Laboratório completo sem conta AWS
+
+Para explorar o cenário de negócio com DynamoDB, SQS, SNS, S3, Lambda e banco local,
+instale Python 3.12+ e Docker/Compose v2, depois execute:
+
+```bash
+python scripts/setup.py --local
+# Windows: .\setup.cmd --local
+# Linux/macOS: bash setup.sh --local
+```
+
+O setup prepara os serviços, dados fictícios e quatro runbooks reutilizáveis, incluindo
+**XPTO - Recuperar pagamento parado**. Veja o [roteiro do laboratório](docs/LOCAL_LAB.md)
+para entradas, resultados esperados, casos de falha, reexecução e fallback do catálogo.
+
 ## Rodar standalone em modo demo
 
 Com Python 3.12+ instalado, o setup prepara o ambiente e inicia a app:
@@ -56,10 +71,10 @@ Alternativa universal: `python scripts/setup.py`. Use `--install-only` para some
 Não é necessário ativar o venv. O servidor abre em `http://127.0.0.1:8501`.
 Veja [Setup e execução local](docs/SETUP.md) para todas as opções e troubleshooting.
 
-**Docker e LocalStack não são necessários.** O bootstrap standalone usa o backend demo
+**No modo demo, Docker e LocalStack não são necessários.** O bootstrap standalone usa o backend demo
 interno. Para AWS real, configure `AWSContext(mode="aws", ...)` na aplicação host; somente
-definir um profile no terminal não troca o modo demo. LocalStack ainda não está integrado e
-endpoints personalizados são ignorados pelo provider AWS.
+definir um profile no terminal não troca o modo demo. O modo `local` usa Moto Server em Docker; LocalStack não é utilizado.
+Endpoints personalizados continuam ignorados pelo provider AWS real.
 
 Se preferir a instalação manual:
 
@@ -189,6 +204,10 @@ processos/instâncias ou implantação compartilhada use PostgreSQL. O mesmo con
 
 A CI sobe PostgreSQL 16 real e executa um fluxo dry-run e uma execução live de core para
 validar migrations, queries e semântica de lock em ambos os bancos.
+
+Definições reutilizáveis também podem ser indexadas em DynamoDB on-demand (`FLOWOPS_CATALOG_TABLE`);
+quando a tabela não está disponível, o editor oferece uma cópia local do navegador. Essa cópia
+não contém credenciais e não substitui o histórico durável do Repository.
 
 ## Templates e demo
 

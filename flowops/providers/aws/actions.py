@@ -62,6 +62,14 @@ class AWSAction:
             if isinstance(field, dict):
                 field["type"] = "any"
                 field["oneOf"] = [{"type": value} for value in ("string", "object", "array")]
+        if spec.id == "lambda.invoke":
+            payload = self.metadata.output_schema.get("properties", {}).get("Payload")
+            if isinstance(payload, dict):
+                payload["type"] = "any"
+                payload.pop("contentEncoding", None)
+                payload["description"] = (
+                    "Decoded Lambda JSON/text or bounded binary result. Nested paths are checked at execution time."
+                )
 
     def prepare(self, config: dict[str, Any]) -> tuple[dict[str, Any], Limits]:
         parameters = copy.deepcopy(config)
@@ -233,6 +241,9 @@ def build_registry(backend: Backend, *, catalog: ModelCatalog | None = None) -> 
     registry = ActionRegistry()
     for spec in CURATED:
         registry.register(AWSAction(spec, backend, catalog))
+    from flowops.providers.aws.redrive import RedriveMessages
+
+    registry.register(RedriveMessages(backend, catalog))
     return registry
 
 

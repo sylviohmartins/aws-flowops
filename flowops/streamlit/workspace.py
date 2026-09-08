@@ -18,6 +18,8 @@ from flowops.domain.models import Status, new_id
 from flowops.observability import metric_snapshot
 from flowops.streamlit.canvas import workflow_canvas
 from flowops.streamlit.lambda_review import render_lambda_review
+from flowops.streamlit.resource_picker import render_resource_picker
+from flowops.streamlit.results import render_results
 from flowops.streamlit.typed_inputs import render_typed_inputs
 from flowops.streamlit.ui import FlowOpsUI
 
@@ -150,6 +152,7 @@ class FlowOpsWorkspaceUI(FlowOpsUI):
             return
 
         render_lambda_review(self, working, node, revision)
+        render_resource_picker(self, working, node, revision)
         render_typed_inputs(self, working, node, revision)
 
         metadata = self.runtime.registry.get(node.action).metadata
@@ -404,6 +407,7 @@ class FlowOpsWorkspaceUI(FlowOpsUI):
         st.dataframe(node_rows, width="stretch", hide_index=True)
         with st.expander("Raw node details", expanded=False):
             st.json(node_details, expanded=False)
+        render_results(execution, node_details)
         columns = st.columns(2)
         if execution.status in {Status.PENDING, Status.RUNNING, Status.WAITING_APPROVAL}:
             if columns[0].button("Cancel", key=f"flowops:cancel:{execution.id}"):

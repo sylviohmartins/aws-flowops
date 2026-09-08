@@ -184,7 +184,7 @@ class Engine:
                         (
                             completed.get(e.source, {}).get("status") == Status.SUCCESS
                             and (
-                                e.branch == "default"
+                                (e.branch == "default" and nodes[e.source].action != "core.switch")
                                 or execution.node_branches.get(e.source) == e.branch
                             )
                         )

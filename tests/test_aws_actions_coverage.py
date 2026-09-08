@@ -219,7 +219,8 @@ def test_validate_preview_execute_and_partial_failure_paths() -> None:
 def test_build_registry_register_generic_and_duplicate_registration() -> None:
     backend = Backend()
     registry = build_registry(backend)
-    assert len(registry.list()) == len(CURATED)
+    assert len(registry.list()) == len(CURATED) + 1
+    assert registry.get("sqs.redrive_messages").metadata.idempotent is False
 
     class Catalog:
         def generic_spec(self, service: str, operation: str, allowlist: set[str]) -> Spec:

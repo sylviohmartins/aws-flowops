@@ -1,5 +1,7 @@
 # Setup e execução local
 
+> Para validar efeitos entre serviços sem conta AWS, use `--local`: [laboratório completo](LOCAL_LAB.md). O modo demo abaixo permanece disponível sem Docker.
+
 ## Início rápido
 
 Pré-requisitos: checkout deste repositório, Python 3.12+ com `venv`/`pip` e acesso ao índice de
@@ -22,6 +24,11 @@ O padrão é **demo + SQLite**. Runbooks, histórico e fixtures ficam em `flowop
 checkout, mesmo se o setup for invocado de outro diretório. A aplicação cria o banco e aplica
 suas migrations existentes ao iniciar; o setup não remove bancos nem reinicializa fixtures.
 `FLOWOPS_DATABASE_URL`, se definida, tem precedência e direciona a aplicação para PostgreSQL.
+
+No modo `--local`, o catálogo de runbooks usa DynamoDB on-demand no Moto Server e cria a tabela
+sob demanda. Uma falha temporária sincroniza uma cópia limitada no `localStorage` por conta e
+usuário; esse fallback não substitui o Repository/PostgreSQL, que continua guardando execução,
+aprovação e auditoria.
 
 ## Opções
 

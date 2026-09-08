@@ -2,6 +2,7 @@
 
 import base64
 import logging
+import re
 import threading
 import time
 from datetime import UTC, datetime, timedelta
@@ -17,22 +18,34 @@ from flowops.providers.aws.actions import Limits
 LOG = logging.getLogger("flowops.aws")
 
 
-def resource_scope(parameters: Any, context: AWSContext) -> None:
+def resource_scope(
+    parameters: Any, context: AWSContext, *, queue_endpoint: str | None = None
+) -> None:
     """Prevent cross-account/region resources and user-controlled queue endpoints."""
     if isinstance(parameters, dict):
         for key, value in parameters.items():
             if key == "QueueUrl" and isinstance(value, str):
                 parsed = urlparse(value)
                 suffix = "amazonaws.com.cn" if context.region.startswith("cn-") else "amazonaws.com"
+                endpoint = urlparse(queue_endpoint) if queue_endpoint else None
+                if endpoint and context.mode != "local":
+                    raise PolicyViolation("Local queue endpoints require a local context.")
                 if (
-                    parsed.scheme != "https"
-                    or parsed.hostname != f"sqs.{context.region}.{suffix}"
-                    or parsed.port not in (None, 443)
+                    parsed.scheme != (endpoint.scheme if endpoint else "https")
+                    or parsed.hostname
+                    != (endpoint.hostname if endpoint else f"sqs.{context.region}.{suffix}")
+                    or parsed.port not in ((endpoint.port,) if endpoint else (None, 443))
                     or parsed.username
                     or parsed.password
                     or parsed.query
                     or parsed.fragment
                     or not parsed.path.startswith(f"/{context.account_id}/")
+                    or (
+                        endpoint
+                        and not re.fullmatch(
+                            rf"/{context.account_id}/[A-Za-z0-9_-]+(?:\.fifo)?", parsed.path
+                        )
+                    )
                 ):
                     raise PolicyViolation(
                         "Queue URL must belong to the selected AWS account and region."
@@ -47,10 +60,10 @@ def resource_scope(parameters: Any, context: AWSContext) -> None:
                     raise PolicyViolation(
                         "Cross-account or cross-region resource reference denied."
                     )
-            resource_scope(value, context)
+            resource_scope(value, context, queue_endpoint=queue_endpoint)
     elif isinstance(parameters, list):
         for value in parameters:
-            resource_scope(value, context)
+            resource_scope(value, context, queue_endpoint=queue_endpoint)
 
 
 def normalize_output(value: Any, max_bytes: int) -> Any:
@@ -92,6 +105,8 @@ def json_load(value: str) -> Any:
 
 class BotoBackend:
     """Trusted contexts are supplied by the host, never by an imported runbook."""
+
+    queue_endpoint: str | None = None
 
     def __init__(self, contexts: list[AWSContext], *, session_factory: Any = None):
         self.contexts = {c.environment: c.model_copy(deep=True) for c in contexts}
@@ -164,6 +179,10 @@ class BotoBackend:
                 )
             return self.clients[key]
 
+    def client_for_host(self, service: str, context: ActionContext) -> Any:
+        """Expose a trusted provider client to host-owned catalog maintenance only."""
+        return self._client(service, context)
+
     def release(self, execution_id: str) -> None:
         with self.lock:
             self.sessions.pop(execution_id, None)
@@ -185,7 +204,7 @@ class BotoBackend:
             ReadTimeoutError,
         )
 
-        resource_scope(parameters, context.aws)
+        resource_scope(parameters, context.aws, queue_endpoint=self.queue_endpoint)
         start = time.monotonic()
         try:
             client = self._client(service, context)

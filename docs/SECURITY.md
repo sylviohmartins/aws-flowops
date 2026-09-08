@@ -81,6 +81,10 @@ Mesmo com redaction, não use FlowOps como transporte de segredos. Referencie id
 recursos ou mecanismos externos de secret delivery quando uma aplicação operacional precisar
 de segredo.
 
+O catálogo local do navegador armazena apenas uma cópia de definição limitada e isolada por
+origem/conta/usuário. Ele não é criptografia, não é fonte de verdade, não armazena outputs,
+receipt handles ou credenciais e pode ser removido pelo usuário/administrador do navegador.
+
 ## Simulação
 
 `dry_run=True` é simulação FlowOps e evita a chamada `execute` de ações mutáveis. A implementação

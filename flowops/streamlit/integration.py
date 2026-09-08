@@ -47,15 +47,16 @@ class FlowOpsPage:
         key = f"flowops:runtime:{fingerprint}"
         runtime = st.session_state.get(key)
         if not isinstance(runtime, FlowOpsRuntime):
-            runtime = (
-                FlowOpsRuntime.demo(self.repository)
-                if self.aws_context.mode == "demo"
-                else FlowOpsRuntime.aws(
+            if self.aws_context.mode == "demo":
+                runtime = FlowOpsRuntime.demo(self.repository)
+            elif self.aws_context.mode == "local":
+                runtime = FlowOpsRuntime.local(self.repository, [self.aws_context])
+            else:
+                runtime = FlowOpsRuntime.aws(
                     self.repository,
                     [self.aws_context],
                     generic_allowlist=self.generic_allowlist,
                 )
-            )
             st.session_state[key] = runtime
         return runtime
 

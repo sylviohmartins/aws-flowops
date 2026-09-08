@@ -91,6 +91,15 @@ Restrinja prefixos quando o runbook operar apenas uma parte do bucket.
 Prefira ARNs explícitos ou padrões de recurso por ambiente. Evite uma única role compartilhada
 entre contas. Se o fluxo precisa de poucos recursos, liste-os nominalmente.
 
+## Catálogo de runbooks
+
+Se o host habilitar o catálogo DynamoDB, a role precisa de `dynamodb:DescribeTable`,
+`dynamodb:CreateTable`, `dynamodb:TagResource` (quando a organização exigir tags) e
+`dynamodb:PutItem`/`dynamodb:Query` apenas na tabela configurada em `FLOWOPS_CATALOG_TABLE`.
+Prefira criar a tabela via IaC e remover `CreateTable` da role de produção; a criação sob demanda
+é uma proteção de primeiro uso para o laboratório e para ambientes em que a tabela ainda não foi
+provisionada. O fallback do navegador não concede permissões AWS adicionais.
+
 ## Validação
 
 O nome de uma API nem sempre é o nome de sua permissão IAM. O catálogo mapeia explicitamente

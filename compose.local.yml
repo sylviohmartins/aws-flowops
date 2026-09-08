@@ -1,0 +1,40 @@
+name: flowops-lab
+services:
+  aws:
+    image: motoserver/moto:5.2.3
+    ports:
+      - "127.0.0.1:5000:5000"
+    environment:
+      MOTO_PORT: "5000"
+      MOTO_DOCKER_NETWORK_NAME: flowops-lab
+      MOTO_DOCKER_LAMBDA_IMAGE: ghcr.io/shogo82148/lambda-python:3.12
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      default:
+        aliases: [motoserver]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/moto-api/', timeout=2)"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: flowops_local
+      POSTGRES_PASSWORD: flowops_local
+      POSTGRES_DB: flowops_local
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flowops_local -d flowops_local"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+networks:
+  default:
+    name: flowops-lab
+volumes:
+  postgres:

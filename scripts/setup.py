@@ -31,6 +31,16 @@ def parser() -> argparse.ArgumentParser:
     )
     result.add_argument("--postgres", action="store_true", help="Instalar o driver PostgreSQL.")
     result.add_argument(
+        "--local",
+        action="store_true",
+        help="Iniciar laboratorio AWS em Docker, dados ficticios e PostgreSQL.",
+    )
+    result.add_argument(
+        "--stop-local",
+        action="store_true",
+        help="Parar containers locais preservando o volume PostgreSQL.",
+    )
+    result.add_argument(
         "--venv", type=Path, default=ROOT / ".venv", help="Diretorio do ambiente virtual."
     )
     result.add_argument(
@@ -40,10 +50,31 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument(
         "--app",
         type=Path,
-        default=ROOT / "standalone_app.py",
+        default=None,
         help="Bootstrap Streamlit alternativo.",
     )
     return result
+
+
+def local_services(*, stop: bool = False) -> None:
+    print("Verificando Docker e Compose v2...", flush=True)
+    subprocess.run(["docker", "info"], check=True, cwd=ROOT, stdout=subprocess.DEVNULL)
+    compose = ["docker", "compose", "-f", str(ROOT / "compose.local.yml")]
+    subprocess.run([*compose, "version"], check=True, cwd=ROOT)
+    if stop:
+        subprocess.run([*compose, "stop"], check=True, cwd=ROOT)
+        print(
+            "Containers parados. Dados AWS emulados serao recriados no proximo inicio; PostgreSQL preservado.",
+            flush=True,
+        )
+        return
+    print("Baixando runtime da Lambda (primeira execucao pode demorar)...", flush=True)
+    subprocess.run(
+        ["docker", "pull", "ghcr.io/shogo82148/lambda-python:3.12"],
+        check=True,
+        cwd=ROOT,
+    )
+    subprocess.run([*compose, "up", "-d", "--wait", "--wait-timeout", "120"], check=True, cwd=ROOT)
 
 
 def prepare_environment(directory: Path, *, install: bool) -> Path:
@@ -79,16 +110,27 @@ def main(argv: list[str] | None = None) -> int:
         cli.error("Instale Python 3.12+ e execute novamente com esse interpretador.")
     if args.run_only and (args.dev or args.postgres):
         cli.error("--dev e --postgres sao opcoes de instalacao; remova --run-only.")
-    app = args.app.expanduser().resolve()
+    if args.local and args.app:
+        cli.error("--local usa local_app.py; nao combine com --app.")
+    app = (
+        (args.app or ROOT / ("local_app.py" if args.local else "standalone_app.py"))
+        .expanduser()
+        .resolve()
+    )
     if not app.is_file() or app.suffix != ".py":
         cli.error("--app deve apontar para um arquivo Python existente.")
     try:
+        if args.stop_local:
+            local_services(stop=True)
+            return 0
+        if args.local:
+            local_services()
         python = prepare_environment(args.venv.expanduser().resolve(), install=not args.run_only)
         if not args.run_only:
             extras = []
             if args.dev:
                 extras.append("dev")
-            if args.postgres or os.getenv("FLOWOPS_DATABASE_URL"):
+            if args.local or args.postgres or os.getenv("FLOWOPS_DATABASE_URL"):
                 extras.append("postgres")
             target = str(ROOT) + (f"[{','.join(extras)}]" if extras else "")
             print("Instalando dependencias do projeto...", flush=True)
@@ -108,8 +150,18 @@ def main(argv: list[str] | None = None) -> int:
             check=True,
             cwd=ROOT,
         )
+        if args.local:
+            print(
+                "Criando recursos e fluxos ausentes, preservando alteracoes existentes...",
+                flush=True,
+            )
+            subprocess.run([str(python), "-m", "flowops.providers.aws.lab"], check=True, cwd=ROOT)
         if args.install_only:
-            print("Setup concluido. Para iniciar: execute este script com --run-only.", flush=True)
+            suffix = " --local" if args.local else ""
+            print(
+                f"Setup concluido. Para iniciar: execute este script com --run-only{suffix}.",
+                flush=True,
+            )
             return 0
         print(
             f"Iniciando {app.name}: http://127.0.0.1:{args.port} (Ctrl+C para encerrar).",

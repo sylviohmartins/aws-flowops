@@ -88,6 +88,9 @@ def defaults_from_schema(schema: dict[str, Any], depth: int = 0) -> dict[str, An
 def _schema_at(schema: dict[str, Any], parts: list[str]) -> dict[str, Any] | None:
     current: dict[str, Any] = schema
     for part in parts:
+        if current.get("type") == "any":
+            # Provider-decoded JSON is validated by lookup at execution time.
+            return {"type": "any"}
         if current.get("type") == "array":
             item = current.get("items")
             if not isinstance(item, dict):

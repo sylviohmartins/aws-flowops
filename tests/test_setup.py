@@ -81,6 +81,48 @@ class SetupTests(unittest.TestCase):
             self.assertEqual(error.exception.code, 2)
             prepare.assert_not_called()
 
+    def test_local_mode_provisions_before_seed_and_uses_postgres_extra(self) -> None:
+        with (
+            patch.object(setup, "prepare_environment", return_value=Path(sys.executable)),
+            patch.object(setup.subprocess, "run") as run,
+            patch.dict(os.environ, {"FLOWOPS_DATABASE_URL": "postgresql://do-not-use.invalid/db"}),
+        ):
+            self.assertEqual(setup.main(["--local", "--install-only"]), 0)
+            commands = [call.args[0] for call in run.call_args_list]
+            self.assertEqual(commands[0], ["docker", "info"])
+            self.assertTrue(any("--wait" in command for command in commands))
+            self.assertTrue(any(str(setup.ROOT) + "[postgres]" in command for command in commands))
+            self.assertEqual(commands[-1][-2:], ["-m", "flowops.providers.aws.lab"])
+            self.assertFalse(any("streamlit" in command for command in commands))
+            self.assertTrue(all("do-not-use" not in str(command) for command in commands))
+
+    def test_local_run_only_still_seeds_and_docker_failure_stops_setup(self) -> None:
+        with (
+            patch.object(setup, "prepare_environment", return_value=Path(sys.executable)),
+            patch.object(setup.subprocess, "run") as run,
+        ):
+            self.assertEqual(setup.main(["--local", "--run-only", "--no-browser"]), 0)
+            commands = [call.args[0] for call in run.call_args_list]
+            self.assertFalse(any("install" in command for command in commands))
+            self.assertIn(str(setup.ROOT / "local_app.py"), commands[-1])
+        with (
+            patch.object(setup, "prepare_environment") as prepare,
+            patch.object(setup.subprocess, "run", side_effect=FileNotFoundError("Docker ausente")),
+        ):
+            self.assertEqual(setup.main(["--local"]), 1)
+            prepare.assert_not_called()
+
+    def test_stop_only_preserves_volumes_and_local_app_is_fixed(self) -> None:
+        with (
+            patch.object(setup, "prepare_environment") as prepare,
+            patch.object(setup.subprocess, "run") as run,
+        ):
+            self.assertEqual(setup.main(["--stop-local"]), 0)
+            self.assertEqual(run.call_args.args[0][-1], "stop")
+            prepare.assert_not_called()
+            with self.assertRaises(SystemExit):
+                setup.main(["--local", "--app", "standalone_app.py"])
+
 
 @unittest.skipUnless(os.getenv("FLOWOPS_TEST_SETUP") == "1", "Setup installation smoke is opt-in")
 class SetupSmokeTests(unittest.TestCase):
