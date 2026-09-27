@@ -141,8 +141,8 @@ class BotocoreContractTests(unittest.TestCase):
 
     def test_generic_default_deny_and_conservative_risk(self) -> None:
         with self.assertRaises(PolicyViolation):
-            self.catalog.generic_spec("ec2", "describe_instances", set())
-        spec = self.catalog.generic_spec("ec2", "describe_instances", {"ec2.describe_instances"})
+            self.catalog.generic_spec("ec2", "describe_hosts", set())
+        spec = self.catalog.generic_spec("ec2", "describe_hosts", {"ec2.describe_hosts"})
         self.assertFalse(spec.read_only)
         with self.assertRaises(PolicyViolation):
             self.catalog.generic_spec("iam", "create_user", {"iam.create_user"})

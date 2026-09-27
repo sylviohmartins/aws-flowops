@@ -54,7 +54,9 @@ class FakeStreamlit:
 
     def selectbox(self, label: str, options: list[Any], **kwargs: Any) -> Any:
         chosen = self.select_values.get(label)
-        return chosen if chosen in options else options[0]
+        if chosen in options:
+            return chosen
+        return options[kwargs.get("index", 0)]
 
     def text_input(self, label: str, **kwargs: Any) -> str:
         return self.text_values.get(label, "")
@@ -119,17 +121,18 @@ def test_execution_history_empty_filter_cancel_and_rerun(monkeypatch: pytest.Mon
 
     ui._visible_executions = lambda limit=1000: []  # type: ignore[method-assign]
     ui._executions()
-    assert fake.frames[-1] == []
+    assert not fake.frames
+    assert fake.captions[-1] == "Sem registros para exibir."
 
     pending = execution(Status.PENDING)
     ui._visible_executions = lambda limit=1000: [pending]  # type: ignore[method-assign]
-    fake.clicks = {"Cancel"}
+    fake.clicks = {"Cancelar"}
     ui._executions()
     assert cancelled == [pending.id]
     assert fake.rerun_called is True
 
     fake.rerun_called = False
-    fake.clicks = {"Run again"}
+    fake.clicks = {"Executar novamente"}
     succeeded = execution(Status.SUCCESS)
     ui._visible_executions = lambda limit=1000: [succeeded]  # type: ignore[method-assign]
     ui._executions()
@@ -139,10 +142,12 @@ def test_execution_history_empty_filter_cancel_and_rerun(monkeypatch: pytest.Mon
     assert fake.rerun_called is True
 
     fake.clicks = set()
-    fake.select_values["Status"] = Status.FAILED.value
+    fake.select_values["Estado"] = Status.FAILED.value
     ui._visible_executions = lambda limit=1000: [succeeded]  # type: ignore[method-assign]
+    frame_count = len(fake.frames)
     ui._executions()
-    assert fake.frames[-1] == []
+    assert len(fake.frames) == frame_count
+    assert fake.captions[-1] == "Sem registros para exibir."
 
 
 def test_approvals_empty_permission_filter_and_reject(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -164,16 +169,17 @@ def test_approvals_empty_permission_filter_and_reject(monkeypatch: pytest.Monkey
         engine=SimpleNamespace(
             store=store,
             approve=lambda *args, **kwargs: decisions.append((args, kwargs)),
+            policy=SimpleNamespace(two_person=True),
         ),
         worker=SimpleNamespace(enqueue=lambda execution_id: None),
     )
     ui._granted = lambda permission, book=None: False  # type: ignore[method-assign]
     ui._approvals()
-    assert fake.infos == ["No pending approvals."]
+    assert fake.infos == ["Nenhuma aprovação pendente."]
 
     fake.infos.clear()
-    fake.clicks = {"Reject"}
-    fake.text_values["Decision reason"] = "unsafe change"
+    fake.clicks = {"Rejeitar"}
+    fake.text_values["Motivo da decisão"] = "unsafe change"
     ui._granted = lambda permission, book=None: True  # type: ignore[method-assign]
     ui._approvals()
     assert len(decisions) == 1
@@ -222,10 +228,10 @@ def test_audit_filters_visibility_and_event_text(monkeypatch: pytest.MonkeyPatch
     ui.repository = SimpleNamespace(events=lambda limit=1000: events)
     ui._visible_executions = lambda limit=1000: [visible_execution]  # type: ignore[method-assign]
     ui._visible_runbooks = lambda query="": [book]  # type: ignore[method-assign]
-    fake.text_values["Event filter"] = "completed"
+    fake.text_values["Filtrar evento"] = "completed"
     ui._audit()
     assert len(fake.frames[-1]) == 1
-    assert fake.frames[-1][0]["what"] == "EXECUTION_COMPLETED"
+    assert fake.frames[-1][0]["Evento"] == "EXECUTION_COMPLETED"
     assert fake.json_values[-1]["id"] == "e1"
 
 
@@ -237,16 +243,16 @@ def test_resource_explorer_denies_without_permission_and_persists_result(
     ui.runtime = SimpleNamespace(registry=SimpleNamespace())
     ui._granted = lambda permission, book=None: False  # type: ignore[method-assign]
     ui._resources()
-    assert fake.warnings == ["Your identity does not have aws.read."]
+    assert fake.warnings == ["Seu perfil não possui a permissão aws.read."]
 
     fake.warnings.clear()
-    fake.clicks = {"Discover resources"}
+    fake.clicks = {"Buscar recursos"}
     ui._granted = lambda permission, book=None: True  # type: ignore[method-assign]
     monkeypatch.setattr(
         "flowops.streamlit.ui.explore",
         lambda registry, user, aws, service: {"resources": [service]},
     )
     ui._resources()
-    assert fake.session_state["flowops:resource-result"]
+    assert fake.session_state["flowops:resource-result:dynamodb"]
     assert fake.json_values[-1] == {"resources": ["dynamodb"]}
-    assert fake.captions[-1].startswith("Resource discovery is read-only")
+    assert fake.captions[-1].startswith("A busca de recursos é somente leitura")

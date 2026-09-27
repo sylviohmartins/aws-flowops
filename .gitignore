@@ -19,3 +19,6 @@ test-results/
 playwright-report/
 
 browser-artifacts/
+node_modules/
+.build-check/
+references/

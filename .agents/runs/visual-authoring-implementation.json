@@ -1,0 +1,180 @@
+{
+  "id": "visual-authoring-implementation",
+  "phase": "PROMOTION_DECISION",
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "description": "Onda 0: reconciliar alterações e diagnosticar interação ao vivo com regressão determinística (AC04, AC18)",
+      "status": "DONE",
+      "evidence": [
+        "live_execution.py now ignores late fragment callbacks after navigation; tests/test_live_selection_regression.py covers the stale callback and the full browser journey passed",
+        "EditBuffer callbacks verify current buffer identity before mutating it; the previous unexpected dirty query was reproduced and the corrected isolated authoring journey passed"
+      ]
+    },
+    {
+      "id": "REQ-002",
+      "description": "Onda 1: buffers, edição visual recursiva, JSON explícito e parâmetros sem perda (AC02-AC06, AC08, AC14, AC16)",
+      "status": "DONE",
+      "evidence": [
+        "Visual recursive editor, explicit JSON mode, type-aware dirty/conflict comparison, nested list/object editing, parameter authoring and apply/discard flow are covered by focused AppTest and pure tests",
+        "Full pytest reached the 96% coverage floor; latest focused authoring checks passed"
+      ]
+    },
+    {
+      "id": "REQ-003",
+      "description": "Onda 2: DynamoDB reversível, origens de valores, transformação e payload aninhado (AC01, AC03, AC07, AC17)",
+      "status": "DONE",
+      "evidence": [
+        "DynamoDB read adapter preserves advanced options and bindings while covering Query/GetItem S/N/index/limit rules; collection preview and full browser journey exercise query-to-map-to-Lambda payload authoring without manual JSON"
+      ]
+    },
+    {
+      "id": "REQ-004",
+      "description": "Onda 3: jornada guiada, conexões por teclado, revisão e documentação (AC01, AC12-AC14)",
+      "status": "DONE",
+      "evidence": [
+        "Canvas/List/Assistant views share the session draft; keyboard connections, dependency-ordered guidance, approval messaging, exports and pt-BR browser checks passed"
+      ]
+    },
+    {
+      "id": "REQ-005",
+      "description": "Validar permissões, conflitos, aprovação, exportação e compatibilidade sem AWS real (AC08-AC11, AC15-AC18)",
+      "status": "DONE",
+      "evidence": [
+        "Authorization rechecks, explicit apply/save/publish gates, approval simulation versus manual demo, immutable result exports and no-real-AWS browser fixtures are covered by the suite and full browser journey"
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "integrate-visual-authoring",
+      "wave": 1,
+      "status": "DONE",
+      "requirementIds": [
+        "REQ-001",
+        "REQ-002",
+        "REQ-003",
+        "REQ-004",
+        "REQ-005"
+      ],
+      "files": [
+        "flowops/streamlit/",
+        "tests/",
+        "docs/WORKSPACE_USABILITY.md",
+        ".agents/runs/visual-authoring-implementation.json"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "name": "focused tests",
+      "required": true,
+      "status": "PASSED",
+      "evidence": "Focused authoring, parameter, navigation and workspace checks passed; the final full suite below includes the duplicate AWS guide, stale-buffer, type-equality, parameter-creation and late-fragment regressions."
+    },
+    {
+      "name": "repository quality",
+      "required": true,
+      "status": "PASSED",
+      "evidence": "Final full pytest after the live-fragment and buffer fixes: 289 passed, 5 skipped, 196 subtests; coverage 96.28% and the 96% floor passed. The agent repository validator passed within the suite. Ruff format/lint, mypy (64 modules) and Bandit (9027 lines, no issues) also passed."
+    },
+    {
+      "name": "isolated browser journey",
+      "required": true,
+      "status": "PASSED",
+      "evidence": "Final isolated Chromium journey PASS: organize/undo, zero-manual-JSON Query/map/nested Lambda payload, manual approval, live animated edge, Lambda demo, JSON/CSV/diagnostic exports, failure scenario, pt-BR and responsive checks. browser-artifacts/visual-authoring/result.json records AWS_real_calls=0."
+    },
+    {
+      "name": "build",
+      "required": true,
+      "status": "PASSED",
+      "evidence": "Default python -m build could not overwrite existing dist/aws_flowops-0.1.0.tar.gz (WinError5); preserved it. python -m build --outdir browser-artifacts/visual-authoring/dist-final built wheel+sdist successfully including the new modules and operator guide. Exit 0."
+    },
+    {
+      "name": "dependency audit",
+      "required": true,
+      "status": "BLOCKED",
+      "evidence": "pip-audit retried without TLS bypass: an earlier attempt failed with CERTIFICATE_VERIFY_FAILED while fetching https://pypi.org/pypi/altair/6.2.2/json; the latest attempt failed with WinError 10054 (connection reset by remote host)."
+    },
+    {
+      "name": "exact-tree CI",
+      "required": true,
+      "status": "NOT_RUN",
+      "evidence": "No push/promotion authorization for current dirty tree; no remote CI claim."
+    }
+  ],
+  "failures": [
+    {
+      "status": "RESOLVED",
+      "summary": "Reproduced selected query -> keyboard invoke -> canvas None -> replay query: old render_results incorrectly restored query. tests/test_live_selection_regression.py failed before fix; now only concrete new canvas selections update last-click marker. Navigation intermittence is distinct and remains open in previous run."
+    },
+    {
+      "status": "RESOLVED",
+      "summary": "Old metadata form could reapply stale JSON after visual/query edits. Dialog and guide now call _node_form(include_config=False), leaving JSON only in legacy advanced page; new config editing uses session buffer with conflict detection."
+    },
+    {
+      "status": "RESOLVED",
+      "summary": "Unexpected dirty query was caused by a late type-selector callback mutating a replaced buffer and clearing TableName. Identity guard plus a focused regression prevent stale callbacks; final browser journey passed and the diagnostic showed all buffers pristine after the fix."
+    },
+    {
+      "status": "RESOLVED",
+      "summary": "AWS action in guide with dialog flag cleared rendered same editor twice. New AppTest failed StreamlitDuplicateElementKey before workspace guide ownership guard; passed after."
+    },
+    {
+      "status": "RESOLVED",
+      "summary": "Python == incorrectly considered JSON false/0 and int/float equivalent for dirty/conflict checks. Three parametrized regressions failed before same_json; pass after type-aware deep comparison."
+    }
+  ],
+  "checkpoint": {
+    "branch": "codex/code-defined-tours",
+    "lastReconciled": "2026-09-15",
+    "nextAction": "Completion gate executed; it fails only for the blocked dependency audit and unrun exact-tree CI. Restore trusted TLS and obtain explicit publication/CI authorization before promotion; preserve the user preview session and unrelated dirty files.",
+    "decisions": [
+      "Usuário autorizou executar ondas 0-3 do plano e reutilizar starter-react-lib; sem migração de framework ou novas dependências",
+      "Preservar alterações preexistentes e sessão/DB do usuário na porta 8510; validação isolada",
+      "No parallel agent was spawned; integration and tests performed in this task.",
+      "No provider/engine/domain/persistence contract edits in this increment; added require rechecks to UI apply/save/publish paths.",
+      "User said continue again during validation; continue current work, do not restart discovery."
+    ],
+    "risks": [
+      "Auditoria TLS bloqueada e CI da árvore exata não executada; não promover sem esses checks"
+    ],
+    "impacts": {
+      "AWS": "nenhuma chamada real autorizada para validar",
+      "persistence": "Runbook canônico inalterado; sem migração",
+      "security": "preservar grants e aplicação explícita",
+      "deployment": "sem deploy",
+      "rollback": "reverter somente mudanças identificadas nesta implementação; preservar árvore preexistente"
+    },
+    "changedFilesThisTurn": [
+      "flowops/streamlit/authoring.py",
+      "flowops/streamlit/value_editor.py",
+      "flowops/streamlit/parameter_editor.py",
+      "flowops/streamlit/dynamodb_authoring.py",
+      "flowops/streamlit/flow_journey.py",
+      "flowops/streamlit/typed_inputs.py",
+      "flowops/streamlit/node_editor.py",
+      "flowops/streamlit/resource_picker.py",
+      "flowops/streamlit/ui.py",
+      "flowops/streamlit/workspace.py",
+      "flowops/streamlit/results.py",
+      "flowops/streamlit/live_execution.py",
+      "flowops/streamlit/operator_guide.md",
+      "docs/WORKSPACE_USABILITY.md",
+      "tests/test_visual_authoring.py",
+      "tests/test_visual_authoring_edges.py",
+      "tests/test_dynamodb_authoring.py",
+      "tests/test_flow_journey.py",
+      "tests/test_live_selection_regression.py",
+      "tests/test_typed_inputs.py",
+      "tests/test_resource_picker.py",
+      "tests/test_workspace_usability.py",
+      "tests/test_streamlit_editor_journey.py",
+      "scripts/browser_workspace.py",
+      "flowops/streamlit/collection_preview.py",
+      "tests/test_collection_preview.py",
+      "flowops/streamlit/localization.py",
+      ".agents/runs/graph-organization.json"
+    ]
+  }
+}

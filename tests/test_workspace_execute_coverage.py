@@ -8,6 +8,7 @@ import pytest
 
 from flowops.domain.errors import WorkflowValidationError
 from flowops.domain.models import AWSContext, Identity, Runbook, Status
+from flowops.streamlit.ui import FlowOpsUI
 from flowops.streamlit.workspace import FlowOpsWorkspaceUI
 
 
@@ -22,7 +23,7 @@ class FakeStreamlit:
         self.successes: list[str] = []
 
     def header(self, value: str) -> None:
-        assert value == "Execute Runbook"
+        assert value == "Executar procedimento"
 
     def caption(self, value: str) -> None:
         self.captions.append(value)
@@ -31,7 +32,7 @@ class FakeStreamlit:
         self.warnings.append(value)
 
     def selectbox(self, label: str, options: list[int], *, key: str) -> int:
-        assert label == "Version"
+        assert label == "Versão"
         return options[0]
 
     def form(self, key: str) -> FakeStreamlit:
@@ -44,14 +45,14 @@ class FakeStreamlit:
         return None
 
     def checkbox(self, label: str, *, value: bool) -> bool:
-        assert label == "FlowOps simulation"
+        assert label == "Simulação do FlowOps"
         return self.simulation
 
     def text_input(self, label: str) -> str:
         return self.inputs.get(label, "")
 
     def form_submit_button(self, label: str, *, type: str) -> bool:
-        assert label == "Submit execution"
+        assert label == "Enviar execução"
         return self.submitted
 
     def success(self, value: str) -> None:
@@ -81,7 +82,7 @@ class Store:
             from flowops.domain.errors import WorkflowValidationError
 
             raise WorkflowValidationError("missing")
-        return SimpleNamespace(status=Status.SUCCESS)
+        return SimpleNamespace(id=execution_id, status=Status.SUCCESS)
 
 
 class Engine:
@@ -139,17 +140,22 @@ def ui_for(
     return ui, engine, worker
 
 
-def test_execute_returns_when_no_published_runbook(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("ui_class", [FlowOpsUI, FlowOpsWorkspaceUI])
+def test_execute_returns_when_no_published_runbook(
+    monkeypatch: pytest.MonkeyPatch, ui_class
+) -> None:
     fake = FakeStreamlit()
     monkeypatch.setitem(sys.modules, "streamlit", fake)
-    ui = FlowOpsWorkspaceUI.__new__(FlowOpsWorkspaceUI)
+    ui = ui_class.__new__(ui_class)
     ui._select_runbook = lambda **kwargs: None  # type: ignore[method-assign]
     ui._execute()
     assert fake.captions == []
 
 
+@pytest.mark.parametrize("ui_class", [FlowOpsUI, FlowOpsWorkspaceUI])
 def test_execute_requires_exact_live_production_confirmation(
     monkeypatch: pytest.MonkeyPatch,
+    ui_class,
 ) -> None:
     fake = FakeStreamlit()
     fake.simulation = False
@@ -158,42 +164,50 @@ def test_execute_requires_exact_live_production_confirmation(
     book = Runbook(name="Published", version=1)
     ui, engine, worker = ui_for(book)
 
-    with pytest.raises(WorkflowValidationError, match="exact target account"):
-        ui._execute()
+    with pytest.raises(WorkflowValidationError, match="ID exato da conta"):
+        ui_class._execute(ui)
 
     assert engine.calls == []
     assert worker.enqueued == []
-    assert fake.warnings and "PRODUCTION target" in fake.warnings[0]
-    assert any("ticket=CHG-42" in caption for caption in fake.captions)
+    assert fake.warnings and "Destino de PRODUÇÃO" in fake.warnings[0]
+    if ui_class is FlowOpsWorkspaceUI:
+        assert any("ticket=CHG-42" in caption for caption in fake.captions)
 
 
-def test_execute_submits_enqueues_and_reads_last_status(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("ui_class", [FlowOpsUI, FlowOpsWorkspaceUI])
+def test_execute_submits_enqueues_and_reads_last_status(
+    monkeypatch: pytest.MonkeyPatch, ui_class
+) -> None:
+    monkeypatch.setattr("flowops.streamlit.workspace.render_live_execution", lambda *args: None)
     fake = FakeStreamlit()
     fake.simulation = False
     fake.submitted = True
     fake.inputs = {
-        "Reason / change reference": "approved change",
-        "Type PRODUCTION for a live production run": "PRODUCTION",
-        "Type the 12-digit target AWS account": "123456789012",
+        "Motivo / referência da mudança": "approved change",
+        "Digite PRODUCTION para executar efetivamente em produção": "PRODUCTION",
+        "Digite os 12 dígitos da conta AWS de destino": "123456789012",
     }
     monkeypatch.setitem(sys.modules, "streamlit", fake)
     book = Runbook(name="Published", version=1)
     ui, engine, worker = ui_for(book)
 
-    ui._execute()
+    ui_class._execute(ui)
 
     assert worker.enqueued == ["execution-1"]
     assert fake.session_state["flowops:last_execution"] == "execution-1"
-    assert fake.successes == ["Execution execution-1 submitted asynchronously."]
+    assert fake.successes == ["Execução execution-1 enviada para processamento em segundo plano."]
     assert engine.calls[0]["parameters"] == {"parsed": "value"}
     assert engine.calls[0]["dry_run"] is False
     assert engine.calls[0]["reason"] == "approved change"
-    assert engine.calls[0]["correlation_context"] == {"ticket": "CHG-42"}
-    assert any("Latest submitted status: SUCCESS" in caption for caption in fake.captions)
+    if ui_class is FlowOpsWorkspaceUI:
+        assert engine.calls[0]["correlation_context"] == {"ticket": "CHG-42"}
+    assert any("Estado da última execução enviada: Sucesso" in caption for caption in fake.captions)
 
 
+@pytest.mark.parametrize("ui_class", [FlowOpsUI, FlowOpsWorkspaceUI])
 def test_execute_simulation_skips_production_confirmation_and_ignores_stale_last(
     monkeypatch: pytest.MonkeyPatch,
+    ui_class,
 ) -> None:
     fake = FakeStreamlit()
     fake.simulation = True
@@ -203,7 +217,7 @@ def test_execute_simulation_skips_production_confirmation_and_ignores_stale_last
     ui, engine, worker = ui_for(book)
     engine.store.raise_missing = True
 
-    ui._execute()
+    ui_class._execute(ui)
 
     assert len(engine.calls) == 1
     assert engine.calls[0]["dry_run"] is True

@@ -19,6 +19,7 @@ from playwright.sync_api import Page, expect, sync_playwright
 from flowops.domain.models import Status
 from flowops.persistence.executions import ExecutionStore
 from flowops.persistence.repository import Repository
+from flowops.streamlit.navigation import PAGE_LABELS
 
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS = ROOT / "browser-artifacts"
@@ -55,7 +56,7 @@ def choose(page: Page, label: str, value: str) -> None:
 
 def navigate(page: Page, label: str) -> None:
     settled(page)
-    page.get_by_test_id("stSidebar").get_by_text(label, exact=True).click()
+    page.get_by_test_id("stSidebar").get_by_text(PAGE_LABELS[label], exact=True).click()
     settled(page)
 
 
@@ -75,18 +76,23 @@ def wait_server(process: subprocess.Popen[bytes]) -> None:
 
 def journey(page: Page, database: Path) -> None:
     page.goto("http://127.0.0.1:8501")
+    settled(page)
     expect(page.get_by_role("heading", name="AWS FlowOps Studio", exact=True)).to_be_visible()
     navigate(page, "Runbooks")
-    page.get_by_label("Name override", exact=True).fill("Browser acceptance")
-    click(page, "Create runbook")
-    expect(page.get_by_role("combobox", name="Saved runbooks", exact=True)).to_have_value(
+    page.get_by_label("Nome do procedimento (opcional)", exact=True).fill("Browser acceptance")
+    click(page, "Criar procedimento")
+    expect(page.get_by_role("combobox", name="Procedimentos salvos", exact=True)).to_have_value(
         "Browser acceptance · default"
     )
     navigate(page, "Editor")
-    expect(page.get_by_role("heading", name="Visual Runbook Editor", exact=True)).to_be_visible()
-    choose(page, "Action", "dynamodb.get_item")
-    expect(page.get_by_text(re.compile("AWS dynamodb GetItem · risk"))).to_be_visible()
-    click(page, "Insert before End")
+    page.get_by_role("radio", name="Canvas", exact=True).press("Space")
+    settled(page)
+    expect(
+        page.get_by_role("heading", name="Editor visual de procedimentos", exact=True)
+    ).to_be_visible()
+    choose(page, "Ação", "dynamodb.get_item")
+    expect(page.get_by_text(re.compile("Operação dynamodb.get_item · risco"))).to_be_visible()
+    click(page, "Inserir antes do fim")
     canvas = page.frame_locator('iframe[title="streamlit_flow.streamlit_flow"]')
     get_node = canvas.locator(".react-flow__node").filter(has_text="dynamodb.get_item")
     expect(get_node).to_have_count(1)
@@ -94,27 +100,32 @@ def journey(page: Page, database: Path) -> None:
     assert get_id
     get_node.click()
     settled(page)
-    expect(page.get_by_role("combobox", name="Node properties", exact=True)).to_have_value(
+    expect(page.get_by_role("combobox", name="Propriedades da etapa", exact=True)).to_have_value(
         re.compile("dynamodb.get_item")
     )
-    expect(page.get_by_label("Configuration JSON", exact=True)).to_have_value("{}")
-    page.get_by_label("Configuration JSON", exact=True).fill(
-        json.dumps({"TableName": "payments", "Key": {"paymentId": {"S": "12345"}}})
-    )
-    click(page, "Apply node properties")
-    choose(page, "Action", "sqs.send_message")
-    expect(page.get_by_text(re.compile("AWS sqs SendMessage · risk"))).to_be_visible()
-    click(page, "Insert before End")
+    page.get_by_role("radio", name="Editar JSON", exact=True).click()
+    settled(page)
+    config = page.get_by_label("Código JSON da configuração", exact=True)
+    expect(config).to_have_value("{}")
+    config.fill(json.dumps({"TableName": "payments", "Key": {"paymentId": {"S": "12345"}}}))
+    click(page, "Aplicar configuração ao rascunho")
+    click(page, "Voltar ao fluxo")
+    choose(page, "Ação", "sqs.send_message")
+    expect(page.get_by_text(re.compile("Operação sqs.send_message · risco"))).to_be_visible()
+    click(page, "Inserir antes do fim")
     send_node = canvas.locator(".react-flow__node").filter(has_text="sqs.send_message")
     expect(send_node).to_have_count(1)
     send_id = send_node.get_attribute("data-id")
     assert send_id
     send_node.click()
     settled(page)
-    expect(page.get_by_role("combobox", name="Node properties", exact=True)).to_have_value(
+    expect(page.get_by_role("combobox", name="Propriedades da etapa", exact=True)).to_have_value(
         re.compile("sqs.send_message")
     )
-    page.get_by_label("Configuration JSON", exact=True).fill(
+    page.get_by_role("radio", name="Editar JSON", exact=True).click()
+    settled(page)
+    config = page.get_by_label("Código JSON da configuração", exact=True)
+    config.fill(
         json.dumps(
             {
                 "QueueUrl": "https://sqs.sa-east-1.amazonaws.com/000000000000/payments-events",
@@ -122,16 +133,19 @@ def journey(page: Page, database: Path) -> None:
             }
         )
     )
-    click(page, "Apply node properties")
-    choose(page, "Target field", "MessageBody")
-    choose(page, "Source", f"nodes.{get_id}.output.Item · object")
-    expect(page.get_by_text("Type compatible: object → any", exact=True)).to_be_visible()
-    click(page, "Apply mapping")
-    expect(page.get_by_label("Configuration JSON", exact=True)).to_have_value(
+    click(page, "Aplicar configuração ao rascunho")
+    choose(page, "Campo de destino", "MessageBody")
+    choose(page, "Origem", f"nodes.{get_id}.output.Item · objeto")
+    expect(
+        page.get_by_text("Tipos compatíveis: objeto → qualquer tipo", exact=True)
+    ).to_be_visible()
+    click(page, "Aplicar mapeamento")
+    expect(page.get_by_label("Código JSON da configuração", exact=True)).to_have_value(
         re.compile(rf"nodes\.{get_id}\.output\.Item")
     )
 
     # Exercise the installed canvas rather than synthesizing component payloads.
+    click(page, "Voltar ao fluxo")
     node_before = send_node.get_attribute("style")
     send_node.hover()
     box = send_node.bounding_box()
@@ -160,14 +174,14 @@ def journey(page: Page, database: Path) -> None:
     frame_box = page.locator('iframe[title="streamlit_flow.streamlit_flow"]').bounding_box()
     assert frame_box
     page.mouse.click(frame_box["x"] + point["x"], frame_box["y"] + point["y"], button="right")
-    canvas.get_by_role("button", name=re.compile("Delete Edge$")).click()
+    canvas.get_by_role("button", name=re.compile("Excluir conexão$")).click()
     settled(page)
     expect(canvas.locator(".react-flow__edge")).to_have_count(edge_count)
 
-    click(page, "Validate")
-    expect(page.get_by_text("Valid workflow: 4 nodes.", exact=True)).to_be_visible()
-    click(page, "Save draft")
-    expect(page.get_by_role("button", name="Publish version", exact=True)).to_be_enabled()
+    click(page, "Validar")
+    expect(page.get_by_text("Fluxo válido: 4 etapas.", exact=True)).to_be_visible()
+    click(page, "Salvar rascunho")
+    expect(page.get_by_role("button", name="Publicar versão", exact=True)).to_be_enabled()
     repository = Repository(database)
     book = repository.list_runbooks("Browser acceptance")[0]
     assert len(book.edges) == edge_count == 3
@@ -177,10 +191,12 @@ def journey(page: Page, database: Path) -> None:
     page.locator('iframe[title="streamlit_flow.streamlit_flow"]').screenshot(
         path=str(ARTIFACTS / "canvas.png")
     )
-    click(page, "Publish version")
+    click(page, "Publicar versão")
     navigate(page, "Execute")
-    click(page, "Submit execution")
-    expect(page.get_by_text(re.compile("submitted asynchronously"))).to_be_visible()
+    click(page, "Enviar execução")
+    expect(
+        page.get_by_text(re.compile("enviada para processamento em segundo plano"))
+    ).to_be_visible()
     store = ExecutionStore(repository)
     deadline = time.monotonic() + 20
     while time.monotonic() < deadline:
@@ -190,10 +206,10 @@ def journey(page: Page, database: Path) -> None:
         time.sleep(0.1)
     assert len(history) == 1 and history[0].status == Status.SUCCESS, history
     navigate(page, "Executions")
-    expect(page.get_by_role("heading", name="Visual execution", exact=True)).to_be_visible()
-    expect(page.get_by_role("button", name="Run again", exact=True)).to_be_visible()
-    click(page, "Run again")
-    expect(page.get_by_role("combobox", name="Execution detail", exact=True)).to_be_visible()
+    expect(page.get_by_role("heading", name="Execução ao vivo", exact=True)).to_be_visible()
+    expect(page.get_by_role("button", name="Executar novamente", exact=True)).to_be_visible()
+    click(page, "Executar novamente")
+    expect(page.get_by_role("combobox", name="Detalhes da execução", exact=True)).to_be_visible()
     deadline = time.monotonic() + 20
     while time.monotonic() < deadline:
         replay_history = store.history()
@@ -281,9 +297,11 @@ def main() -> None:
                     (ARTIFACTS / "frames.json").write_text(
                         json.dumps([frame.url for frame in page.frames])
                     )
-                    (ARTIFACTS / "page.html").write_text(page.content())
+                    (ARTIFACTS / "page.html").write_text(page.content(), encoding="utf-8")
                     for index, frame in enumerate(page.frames[1:]):
-                        (ARTIFACTS / f"frame-{index}.html").write_text(frame.content())
+                        (ARTIFACTS / f"frame-{index}.html").write_text(
+                            frame.content(), encoding="utf-8"
+                        )
                     browser.close()
         finally:
             server.terminate()

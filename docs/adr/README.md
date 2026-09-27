@@ -15,3 +15,4 @@ pelo prompt mestre, incluindo decisões complementares sobre contrato de ações
 | Persistence | [002](002-immutable-runbook-versions.md), [008](008-sqlite-and-postgresql.md) |
 | Execution model | [003](003-durable-checkpointed-execution.md), [009](009-flowops-simulation.md) |
 | Security model | [006](006-aws-credentials-and-context.md), [007](007-rbac-policy-and-approvals.md) |
+| Autoria visual e workbench React | [013](013-embedded-authoring-workbench.md) |

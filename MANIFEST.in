@@ -1,0 +1,6 @@
+include frontend/flow-editor/package.json
+include frontend/flow-editor/package-lock.json
+include frontend/flow-editor/build.mjs
+include frontend/flow-editor/README.md
+recursive-include frontend/flow-editor/src *.jsx *.mjs *.css
+recursive-include frontend/flow-editor/test *.mjs

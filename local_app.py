@@ -8,7 +8,7 @@ from flowops.providers.aws.lab import LAB_DATABASE_URL
 from flowops.providers.aws.local import local_context
 from flowops.streamlit import FlowOpsPage
 
-st.set_page_config(page_title="AWS FlowOps Local Lab", page_icon="◈", layout="wide")
+st.set_page_config(page_title="AWS FlowOps — Laboratório local", page_icon="◈", layout="wide")
 st.caption("Laboratório local · Moto Server · recursos e credenciais de teste")
 FlowOpsPage(
     user=Identity(id="local-operator", display_name="Operador local", roles=["ADMIN"]),

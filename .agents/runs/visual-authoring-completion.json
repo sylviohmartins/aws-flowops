@@ -1,0 +1,138 @@
+{
+  "id": "visual-authoring-completion",
+  "phase": "VALIDATE",
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "description": "Fechar ondas 0-2: parâmetros atômicos, referências e revisões sem perda",
+      "status": "DONE",
+      "evidence": [
+        "Regressões de histórico, bindings de parâmetro e seleção restaurada cobertas por testes; undo/redo preserva visão e nó selecionado."
+      ]
+    },
+    {
+      "id": "REQ-002",
+      "description": "Onda 3: criação por objetivo, assistente delimitado, revisão contextual e jornada completa por teclado",
+      "status": "DONE",
+      "evidence": [
+        "Goal wizard, assistente delimitado e revisão contextual estão cobertos por testes e browsers.",
+        "Authoring-completion passou com comboboxes confirmados somente por teclado (Tab/Shift+Tab, Enter, Space e texto), sem pointer interaction."
+      ]
+    },
+    {
+      "id": "REQ-003",
+      "description": "Onda 4: formulários para ações frequentes, ajuda operacional e navegação por intenção",
+      "status": "DONE",
+      "evidence": [
+        "Formulários tipados, catálogo de ações, resource picker, guia operacional e navegação por áreas estão implementados e cobertos pela suíte local."
+      ]
+    },
+    {
+      "id": "REQ-004",
+      "description": "Onda 5: reformulação próxima ao builder, componente React delimitado, edição contextual, vínculos e histórico reversível com contrato versionado",
+      "status": "DONE",
+      "evidence": [
+        "Frontend React/@xyflow integrado; testes JS 3/3, build reproduzível e npm audit com 0 vulnerabilidades.",
+        "Aceitação responsiva React registrada para 1440/1024/390 e jornada browser completa passou."
+      ]
+    },
+    {
+      "id": "REQ-005",
+      "description": "Comprovar AC01-AC18, build, segurança, auditoria e CI da árvore entregue",
+      "status": "IN_PROGRESS",
+      "evidence": [
+        "AC01-AC18 reconciliados como PASS no escopo automatizado local.",
+        "Gate consolidado atual: 358 passed, 197 subtests passed, 0 skipped, 0 failed, cobertura 96.44%.",
+        "Os quatro browser gates do workflow local passaram: acceptance geral, local lab, workspace e authoring-completion.",
+        "Falta somente a CI remota da árvore candidata exata porque a árvore ainda não foi commitada/publicada."
+      ]
+    },
+    {
+      "id": "REQ-006",
+      "description": "Reconciliar plano, guia e estado por critério",
+      "status": "DONE",
+      "evidence": [
+        "docs/UX_VISUAL_AUTHORING_PLAN.md reconciliado em 27/09/2026 com matriz AC01-AC18 e estado atual.",
+        "ADR 013 e task-runs distinguem validação automatizada concluída de CI remota e estudo humano pendentes."
+      ]
+    },
+    {
+      "id": "REQ-007",
+      "description": "Preparar e analisar avaliação com 5 técnicos e 5 não técnicos reais",
+      "status": "IN_PROGRESS",
+      "evidence": [
+        "Roteiro permanece em docs/UX_AUTHORING_USER_STUDY.md; resultados de participantes reais ainda não foram coletados."
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "close-authoring-plan",
+      "wave": 1,
+      "status": "IN_PROGRESS",
+      "requirementIds": [
+        "REQ-001",
+        "REQ-002",
+        "REQ-003",
+        "REQ-004",
+        "REQ-005",
+        "REQ-006",
+        "REQ-007"
+      ],
+      "files": [
+        "flowops/streamlit/",
+        "frontend/flow-editor/",
+        "tests/",
+        "scripts/browser_authoring.py",
+        "docs/",
+        ".agents/runs/visual-authoring-completion.json"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "name": "pytest-consolidated",
+      "status": "PASS",
+      "evidence": "358 passed, 197 subtests passed, 0 skipped, coverage 96.44%, exit code 0"
+    },
+    {
+      "name": "authoring-browser",
+      "status": "PASS",
+      "evidence": "Acceptance geral, local lab, workspace e authoring-completion passaram; authoring-completion confirmou seleção de combobox somente por teclado."
+    },
+    {
+      "name": "react",
+      "status": "PASS",
+      "evidence": "3/3 tests, build and reproducibility check passed; responsive evidence 1440/1024/390"
+    },
+    {
+      "name": "static-security",
+      "status": "PASS",
+      "evidence": "Ruff and format clean; mypy 70 source files clean; Bandit 0 issues"
+    },
+    {
+      "name": "dependency-audits",
+      "status": "PASS",
+      "evidence": "npm audit 0 vulnerabilities; isolated pip-audit reported no known vulnerabilities"
+    }
+  ],
+  "failures": [],
+  "checkpoint": {
+    "branch": "codex/code-defined-tours",
+    "nextAction": "Automated local AC01-AC18 and quality/browser gates are green. Remaining external gates: collect the planned 5 technical + 5 non-technical human-study results; if publication is authorized, create a controlled candidate commit/branch and run exact-tree remote CI before any promotion decision.",
+    "decisions": [
+      "React remains a bounded component over the existing backend/runbook contract.",
+      "The newly created/imported/duplicated/restored runbook selection is synchronized before Streamlit instantiates its persistent selectbox.",
+      "Resource discovery is explicit and read-only; applying a discovered resource remains a separate user action.",
+      "Do not claim the human usability study or exact-tree remote CI as complete until they actually occur.",
+      "Do not promote or deploy the dirty tree without explicit authorization."
+    ],
+    "impacts": {
+      "AWS": "Demo/Moto only during validation; no real AWS mutation",
+      "persistence": "Existing Runbook contract retained; PostgreSQL integration now rerunnable",
+      "security": "RBAC/scope preserved; Bandit and dependency audits green",
+      "deployment": "Local build only; no production deployment",
+      "rollback": "No migration introduced by authoring/discovery changes"
+    }
+  }
+}

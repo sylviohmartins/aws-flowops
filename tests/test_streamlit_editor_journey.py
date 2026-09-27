@@ -27,8 +27,8 @@ def test_editor_metadata_parameters_insert_remove_validate_and_save_journey() ->
             app = AppTest.from_file(script_path()).run(timeout=20)
             app.sidebar.radio[0].set_value("Runbooks")
             app.run(timeout=20)
-            element(app.text_input, "Name override").set_value("Editor Journey")
-            element(app.button, "Create runbook").click()
+            element(app.text_input, "Nome do procedimento (opcional)").set_value("Editor Journey")
+            element(app.button, "Criar procedimento").click()
             app.run(timeout=20)
             assert list(app.exception) == []
 
@@ -39,10 +39,12 @@ def test_editor_metadata_parameters_insert_remove_validate_and_save_journey() ->
             app.run(timeout=20)
             assert list(app.exception) == []
 
-            element(app.text_input, "Name").set_value("Editor Journey Updated")
-            element(app.text_area, "Description").set_value("edited through Streamlit")
-            element(app.text_input, "Tags (comma separated)").set_value("coverage, editor")
-            element(app.button, "Apply metadata").click()
+            element(app.text_input, "Nome").set_value("Editor Journey Updated")
+            element(app.text_area, "Descrição").set_value("edited through Streamlit")
+            element(app.text_input, "Marcadores (separados por vírgula)").set_value(
+                "coverage, editor"
+            )
+            element(app.button, "Aplicar detalhes").click()
             app.run(timeout=20)
             assert list(app.exception) == []
 
@@ -50,12 +52,13 @@ def test_editor_metadata_parameters_insert_remove_validate_and_save_journey() ->
                 '{"batch":{"type":"integer","required":true,'
                 '"default":2,"description":"Batch size"}}'
             )
-            element(app.text_area, "Parameter schema JSON").set_value(parameter_schema)
-            element(app.button, "Apply parameters").click()
+            element(app.radio, "Modo dos parâmetros").set_value("Editar JSON").run()
+            element(app.text_area, "Código JSON dos parâmetros").set_value(parameter_schema)
+            element(app.button, "Aplicar parâmetros ao rascunho").click()
             app.run(timeout=20)
             assert list(app.exception) == []
 
-            element(app.button, "Save draft").click()
+            element(app.button, "Salvar rascunho").click()
             app.run(timeout=20)
             assert list(app.exception) == []
             saved, revision = Repository(database).get_draft(book.id)
@@ -65,11 +68,11 @@ def test_editor_metadata_parameters_insert_remove_validate_and_save_journey() ->
             assert saved.tags == ["coverage", "editor"]
             assert saved.parameters["batch"].default == 2
 
-            element(app.selectbox, "Action").set_value("core.approval")
-            element(app.button, "Insert before End").click()
+            element(app.selectbox, "Ação").set_value("core.approval")
+            element(app.button, "Inserir antes do fim").click()
             app.run(timeout=20)
             assert list(app.exception) == []
-            element(app.button, "Save draft").click()
+            element(app.button, "Salvar rascunho").click()
             app.run(timeout=20)
             assert list(app.exception) == []
 
@@ -77,14 +80,14 @@ def test_editor_metadata_parameters_insert_remove_validate_and_save_journey() ->
             inserted = next(node for node in with_node.nodes if node.action == "core.approval")
             assert revision == 3
 
-            element(app.selectbox, "Node properties").set_value(inserted.id)
+            element(app.selectbox, "Propriedades da etapa").set_value(inserted.id)
             app.run(timeout=20)
-            element(app.text_input, "Label").set_value("Approval checkpoint")
-            element(app.selectbox, "Failure policy").set_value("CONTINUE")
-            element(app.button, "Apply node properties").click()
+            element(app.text_input, "Nome da etapa").set_value("Approval checkpoint")
+            element(app.selectbox, "Tratamento de falha").set_value("CONTINUE")
+            element(app.button, "Aplicar propriedades da etapa").click()
             app.run(timeout=20)
             assert list(app.exception) == []
-            element(app.button, "Save draft").click()
+            element(app.button, "Salvar rascunho").click()
             app.run(timeout=20)
             assert list(app.exception) == []
             changed, revision = Repository(database).get_draft(book.id)
@@ -93,20 +96,20 @@ def test_editor_metadata_parameters_insert_remove_validate_and_save_journey() ->
             assert changed_node.label == "Approval checkpoint"
             assert changed_node.failure_policy == "CONTINUE"
 
-            element(app.button, "Validate").click()
+            element(app.button, "Validar").click()
             app.run(timeout=20)
             assert list(app.exception) == []
-            assert any("Valid workflow" in success.value for success in app.success)
+            assert any("Fluxo válido" in success.value for success in app.success)
             app.run(timeout=20)
-            assert any("Valid workflow" in success.value for success in app.success)
+            assert any("Fluxo válido" in success.value for success in app.success)
 
-            element(app.selectbox, "Node properties").set_value(inserted.id)
+            element(app.selectbox, "Propriedades da etapa").set_value(inserted.id)
             app.run(timeout=20)
-            element(app.button, "Remove selected node").click()
+            element(app.button, "Remover etapa selecionada").click()
             app.run(timeout=20)
             assert list(app.exception) == []
-            assert not any("Valid workflow" in success.value for success in app.success)
-            element(app.button, "Save draft").click()
+            assert not any("Fluxo válido" in success.value for success in app.success)
+            element(app.button, "Salvar rascunho").click()
             app.run(timeout=20)
             assert list(app.exception) == []
             final, revision = Repository(database).get_draft(book.id)

@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+from urllib.request import Request, urlopen
 
 from botocore.exceptions import ClientError
 
@@ -174,10 +175,60 @@ class LocalBoundaryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Intentional"):
             handler(event, None)
 
+    def test_local_seed_preserves_existing_fixtures_and_uses_conditional_writes(self) -> None:
+        """Provisioning contract without Docker; the separate integration test executes Lambda."""
+        clients = {
+            name: MagicMock() for name in ("sts", "dynamodb", "sqs", "sns", "s3", "iam", "lambda")
+        }
+        clients["sts"].get_caller_identity.return_value = {"Account": local.LOCAL_ACCOUNT}
+        ddb, sqs = clients["dynamodb"], clients["sqs"]
+        ddb.get_item.side_effect = [{}, {"Item": {"id": {"S": "fixtures-v1"}}}]
+        sqs.create_queue.side_effect = lambda **kw: {
+            "QueueUrl": local.LOCAL_ENDPOINT + "/123456789012/" + kw["QueueName"]
+        }
+        sqs.get_queue_attributes.return_value = {
+            "Attributes": {"QueueArn": "arn:aws:sqs:sa-east-1:123456789012:audit"}
+        }
+        clients["sns"].create_topic.return_value = {
+            "TopicArn": "arn:aws:sns:sa-east-1:123456789012:notifications"
+        }
+        # Existing tables and functions are accepted, never replaced.
+        ddb.create_table.side_effect = ClientError(
+            {"Error": {"Code": "ResourceInUseException"}}, "CreateTable"
+        )
+        clients["lambda"].create_function.side_effect = ClientError(
+            {"Error": {"Code": "ResourceConflictException"}}, "CreateFunction"
+        )
+        with patch.object(lab, "local_client", side_effect=lambda name: clients[name]):
+            first = lab.seed_resources()
+            second = lab.seed_resources()
+        self.assertEqual(first, second)
+        self.assertEqual(len(first["queues"]), 4)
+        self.assertEqual(sqs.send_message.call_count, 2)
+        self.assertEqual(clients["s3"].put_object.call_count, 1)
+        self.assertEqual(clients["s3"].put_object.call_args.kwargs["IfNoneMatch"], "*")
+        for call in ddb.put_item.call_args_list:
+            if call.kwargs["TableName"] != "flowops-lab-seed":
+                self.assertIn("attribute_not_exists", call.kwargs["ConditionExpression"])
+        for client in clients.values():
+            self.assertEqual(client.close.call_count, 2)
+        clients["lambda"].update_function_code.assert_not_called()
+        clients["lambda"].update_function_configuration.assert_not_called()
+        self.assertEqual(
+            clients["lambda"].create_function.call_args.kwargs["Runtime"], "python3.12"
+        )
+
 
 @unittest.skipUnless(os.getenv("FLOWOPS_TEST_LOCAL_AWS") == "1", "Real Docker lab is opt-in")
 class LocalBusinessJourneyTests(unittest.TestCase):
     def test_real_five_service_workflow_reuse_failures_and_seed_preservation(self) -> None:
+        # This opt-in integration test asserts absolute queue/table effects, so each
+        # invocation needs an isolated emulator baseline. Reset only Moto's local
+        # in-memory state; production-like seed_resources() intentionally preserves
+        # existing resources and must not be weakened for test cleanup.
+        request = Request(f"{local.LOCAL_ENDPOINT}/moto-api/reset", method="POST")
+        with urlopen(request, timeout=5) as response:
+            self.assertEqual(response.status, 200)
         resources = lab.seed_resources()
         repo = Repository(lab.LAB_DATABASE_URL)
         lab.seed_runbooks(repo)

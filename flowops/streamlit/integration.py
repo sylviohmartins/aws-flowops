@@ -5,6 +5,9 @@ from __future__ import annotations
 from flowops.application import FlowOpsRuntime
 from flowops.domain.models import AWSContext, Identity
 from flowops.persistence.repository import Repository, digest
+from flowops.streamlit.component_locale import render_component_locale
+from flowops.streamlit.layout import render_workspace_style
+from flowops.streamlit.localization import display, render_error
 
 
 class FlowOpsPage:
@@ -63,18 +66,28 @@ class FlowOpsPage:
     def render(self) -> None:
         import streamlit as st
 
+        render_workspace_style()
+        with st.container(key="flowops-workspace"):
+            self._render_workspace()
+
+    def _render_workspace(self) -> None:
+        import streamlit as st
+
         from flowops.streamlit.failure_workspace import FlowOpsGovernedUI
 
+        render_component_locale()
         st.title("AWS FlowOps Studio")
-        st.caption("Visual, versioned and governed AWS operational runbooks")
+        st.caption(
+            "Procedimentos operacionais AWS visuais, versionados e com controles de segurança"
+        )
         st.info(
-            f"{self.aws_context.environment.upper()} · {self.aws_context.account_id} · "
-            f"{self.aws_context.region} · {self.aws_context.mode.upper()}"
+            f"{display(self.aws_context.environment)} · {self.aws_context.account_id} · "
+            f"{self.aws_context.region} · {display(self.aws_context.mode)}"
         )
         try:
             runtime = self._runtime()
         except (RuntimeError, ValueError) as exc:
-            st.error(str(exc))
+            render_error(exc)
             return
         FlowOpsGovernedUI(
             self.user,

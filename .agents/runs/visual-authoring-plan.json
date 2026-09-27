@@ -1,0 +1,30 @@
+{
+  "id": "visual-authoring-plan",
+  "phase": "PLAN_DELIVERED_AWAITING_APPROVAL",
+  "requirements": [
+    {"id":"REQ-001","description":"Diagnosticar todas as jornadas com código e navegador, preservando trabalho existente","status":"DONE","evidence":["docs/UX_VISUAL_AUTHORING_PLAN.md seção 2: dez páginas visitadas em sessões isoladas demo e diálogo Preparar evento; tabela de oportunidades e E01-E14; execução bloqueada por ausência de publicação, sem alegar teste funcional novo"]},
+    {"id":"REQ-002","description":"Comparar fontes oficiais e os dois builders enviados; distinguir inspiração e reúso autorizado","status":"DONE","evidence":["Seção 3: fontes oficiais Workflow Studio, Cloudscape, Make, JSON Forms, React Flow, generator/ASL Viewer/language service; demo pública inspecionada; comparação estática dos builders com caminhos verificáveis e autorização do usuário incorporada"]},
+    {"id":"REQ-003","description":"Propor configuração visual, valores, mapeamento e transformação","status":"DONE","evidence":["Seção 4: controles recursivos, origem de valor e diferenciação entre referência, filtro e map; sem coerção implícita ou novo eval"]},
+    {"id":"REQ-004","description":"Descrever telas, estados e os 12 passos DynamoDB para Lambda","status":"DONE","evidence":["Seção 5: três esboços, jornada de 12 passos, semântica Query/GetItem/Scan, paginação existente e mensagens de erro/recuperação"]},
+    {"id":"REQ-005","description":"Decidir Visual/Código, JSON/YAML e alternativas ao canvas","status":"DONE","evidence":["Seção 4: JSON no editor e YAML no intercâmbio existente; buffer/última prévia válida/aplicação explícita; canvas/lista/assistente preservam topologia; sem tour"]},
+    {"id":"REQ-006","description":"Arquitetura compatível, limites e invariantes de segurança","status":"DONE","evidence":["Seção 6: Streamlit/adaptadores puros e Runbook canônico; compara componente React seletivo versus migração integral; RBAC/engine/provider/imutabilidade/escopo e ausência de migração preservados"]},
+    {"id":"REQ-007","description":"Plano incremental com entrega vertical completa, riscos, dependências e reversão","status":"DONE","evidence":["Seção 7: ondas 0-3 como primeira entrega integral, expansão e React condicionais; dependências, áreas, testes de saída, reaproveitar/melhorar/criar/adiar, mitigação e rollback"]},
+    {"id":"REQ-008","description":"Aceitação mensurável e avaliação com usuários; aguardar aprovação sem implementar","status":"DONE","evidence":["Seções 8-9: AC01-AC18, testes existentes, proposta de pesquisa com 5 técnicos/5 não técnicos sem resultados inventados; somente documentação e registro alterados; decisão aguardando aprovação"]}
+  ],
+  "tasks":[{"id":"research-plan","wave":1,"status":"DONE","requirementIds":["REQ-001","REQ-002","REQ-003","REQ-004","REQ-005","REQ-006","REQ-007","REQ-008"],"files":["docs/UX_VISUAL_AUTHORING_PLAN.md",".agents/runs/visual-authoring-plan.json"]}],
+  "checks":[
+    {"name":"evidence and requirement coverage review","required":true,"status":"PASSED","evidence":"Manual review of all 8 deliverables against attached prompt and new reference/authorization; observed versus inferred/previous evidence separated; no application implementation, AWS calls, install, deploy or publication."},
+    {"name":"document paths and whitespace","required":true,"status":"PASSED","evidence":"PowerShell: 43 unique local links exist and line targets are within file bounds, 9 main sections, 18 acceptance criteria, zero trailing whitespace. git diff --check exit 0 (existing LF/CRLF warnings only)."},
+    {"name":"application tests, AWS integrations and reference builds","required":false,"status":"NOT_RUN","evidence":"Planning-only scope; prior app quality failures/blocks remain in graph-organization.json. No new functional or human-usability results claimed."}
+  ],
+  "failures":[{"status":"RESOLVED","summary":"First document-link check found three links into saas-builder-v13 missing after its directory became unavailable during the analysis. Replaced with clearly labeled historical observations; final check of 43 active links passed. No reference files restored, moved or removed by this task."}],
+  "checkpoint":{
+    "branch":"codex/code-defined-tours",
+    "nextAction":"Aguardar aprovação do usuário para implementar ondas 0-3; não interpretar autorização de reúso do builder como aprovação automática para implementar. Reconciliar árvore e pendências anteriores antes de iniciar.",
+    "lastReconciled":"2026-09-14",
+    "completionGate":"scripts/agents/completion_gate.py .agents/runs/visual-authoring-plan.json --final: PASS, errors []; applies only to delivery of this research and plan, not application promotion readiness.",
+    "impacts":{"application":"none; plan only","AWS":"no real calls","persistence":"no database changes or migrations","security":"no control changes; reuse authorization recorded","deployment":"none","rollback":"remove only docs/UX_VISUAL_AUTHORING_PLAN.md and this run; preserve existing code, drafts, references and databases"},
+    "decisions":["Pedido autoriza diagnóstico e plano, não implementação nesta etapa","Usuário declarou autoria e autorizou reúso de starter-react-lib em 2026-09-14; UNLICENSED não é bloqueador desse reúso autorizado, dependências seguem termos próprios","Sem instalação, chamadas AWS reais, deploy, publicação ou alteração do rascunho do usuário"],
+    "risks":["Pendências de promoção anteriores permanecem em graph-organization.json: interação ao vivo intermitente OPEN, auditoria TLS bloqueada e CI da árvore exata não executada","Builder de referência tem partes mock/preview; presença de código não comprova funcionamento produtivo"]
+  }
+}

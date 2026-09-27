@@ -64,7 +64,10 @@ class SetupTests(unittest.TestCase):
         ):
             self.assertEqual(setup.main(["--install-only", "--dev"]), 0)
             commands = [call.args[0] for call in run.call_args_list]
-            self.assertIn(str(setup.ROOT) + "[dev,postgres]", commands[0])
+            self.assertTrue(any("pip>=26.2.1" in command for command in commands))
+            self.assertTrue(
+                any(str(setup.ROOT) + "[dev,postgres]" in command for command in commands)
+            )
             self.assertFalse(any("run" in command for command in commands))
 
     def test_invalid_options_fail_before_installing(self) -> None:
@@ -95,6 +98,25 @@ class SetupTests(unittest.TestCase):
             self.assertEqual(commands[-1][-2:], ["-m", "flowops.providers.aws.lab"])
             self.assertFalse(any("streamlit" in command for command in commands))
             self.assertTrue(all("do-not-use" not in str(command) for command in commands))
+
+    def test_local_services_reuses_cached_lambda_runtime_and_pulls_only_when_missing(self) -> None:
+        runtime = "ghcr.io/shogo82148/lambda-python:3.12"
+        with patch.object(setup.subprocess, "run") as run:
+            setup.local_services()
+            commands = [call.args[0] for call in run.call_args_list]
+            self.assertIn(["docker", "image", "inspect", runtime], commands)
+            self.assertNotIn(["docker", "pull", runtime], commands)
+
+        def missing_image(command, **kwargs):
+            if command == ["docker", "image", "inspect", runtime]:
+                raise subprocess.CalledProcessError(1, command)
+            return subprocess.CompletedProcess(command, 0)
+
+        with patch.object(setup.subprocess, "run", side_effect=missing_image) as run:
+            setup.local_services()
+            commands = [call.args[0] for call in run.call_args_list]
+            self.assertIn(["docker", "pull", runtime], commands)
+            self.assertTrue(any("--wait" in command for command in commands))
 
     def test_local_run_only_still_seeds_and_docker_failure_stops_setup(self) -> None:
         with (
@@ -188,14 +210,21 @@ class SetupSmokeTests(unittest.TestCase):
                 finally:
                     if process.poll() is None:
                         if os.name == "nt":
+                            # The Streamlit child can exit between poll() and taskkill.
+                            # Cleanup is best-effort and must remain idempotent.
                             subprocess.run(
                                 ["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                                check=True,
+                                check=False,
                                 stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL,
                             )
                         else:
                             os.killpg(process.pid, signal.SIGTERM)
-                    process.wait(timeout=15)
+                    try:
+                        process.wait(timeout=15)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=15)
 
 
 if __name__ == "__main__":

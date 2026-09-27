@@ -27,42 +27,47 @@ def test_runbook_management_and_resource_discovery_journey() -> None:
         previous = os.environ.get("FLOWOPS_DATABASE")
         database = Path(temp) / "management.db"
         os.environ["FLOWOPS_DATABASE"] = str(database)
+        app = None
         try:
             app = AppTest.from_file(script_path()).run(timeout=20)
             app.sidebar.radio[0].set_value("Runbooks")
             app.run(timeout=20)
-            element(app.text_input, "Name override").set_value("Managed Runbook")
-            element(app.button, "Create runbook").click()
+            element(app.text_input, "Nome do procedimento (opcional)").set_value("Managed Runbook")
+            element(app.button, "Criar procedimento").click()
             app.run(timeout=20)
             assert list(app.exception) == []
             assert len(Repository(database).list_runbooks()) == 1
 
-            element(app.button, "Clone").click()
+            element(app.button, "Duplicar").click()
             app.run(timeout=20)
             assert list(app.exception) == []
             assert len(Repository(database).list_runbooks()) == 2
 
-            element(app.button, "Archive").click()
+            element(app.button, "Arquivar").click()
             app.run(timeout=20)
             assert list(app.exception) == []
             repository = Repository(database)
             assert len(repository.list_runbooks()) == 1
             assert len(repository.list_runbooks(archived=True)) == 1
 
-            element(app.button, "Logical delete").click()
+            element(app.button, "Excluir logicamente").click()
             app.run(timeout=20)
             assert list(app.exception) == []
             assert Repository(database).list_runbooks() == []
 
             app.sidebar.radio[0].set_value("Resources")
             app.run(timeout=20)
-            element(app.button, "Discover resources").click()
+            element(app.button, "Buscar recursos").click()
             app.run(timeout=20)
             assert list(app.exception) == []
             assert any(
-                "Resource discovery is read-only" in caption.value for caption in app.caption
+                "A busca de recursos é somente leitura" in caption.value for caption in app.caption
             )
         finally:
+            if app is not None:
+                for value in app.session_state.filtered_state.values():
+                    if isinstance(value, FlowOpsRuntime):
+                        value.close()
             if previous is None:
                 os.environ.pop("FLOWOPS_DATABASE", None)
             else:
@@ -75,6 +80,7 @@ def test_manual_approval_and_rerun_journey() -> None:
         database = Path(temp) / "approval.db"
         os.environ["FLOWOPS_DATABASE"] = str(database)
         runtime: FlowOpsRuntime | None = None
+        app = None
         try:
             repository = Repository(database)
             book = Runbook(
@@ -115,8 +121,8 @@ def test_manual_approval_and_rerun_journey() -> None:
             app.sidebar.radio[0].set_value("Approvals")
             app.run(timeout=20)
             assert list(app.exception) == []
-            element(app.text_input, "Decision reason").set_value("reviewed and approved")
-            element(app.button, "Approve").click()
+            element(app.text_input, "Motivo da decisão").set_value("reviewed and approved")
+            element(app.button, "Aprovar").click()
             app.run(timeout=20)
             assert list(app.exception) == []
 
@@ -133,7 +139,7 @@ def test_manual_approval_and_rerun_journey() -> None:
             app.sidebar.radio[0].set_value("Executions")
             app.run(timeout=20)
             assert list(app.exception) == []
-            element(app.button, "Run again").click()
+            element(app.button, "Executar novamente").click()
             app.run(timeout=20)
             assert list(app.exception) == []
 
@@ -147,11 +153,15 @@ def test_manual_approval_and_rerun_journey() -> None:
 
             app.sidebar.radio[0].set_value("Audit")
             app.run(timeout=20)
-            element(app.text_input, "Event filter").set_value("APPROV")
+            element(app.text_input, "Filtrar evento").set_value("APPROV")
             app.run(timeout=20)
             assert list(app.exception) == []
-            assert element(app.selectbox, "Event detail") is not None
+            assert element(app.selectbox, "Detalhes do evento") is not None
         finally:
+            if app is not None:
+                for value in app.session_state.filtered_state.values():
+                    if isinstance(value, FlowOpsRuntime):
+                        value.close()
             if runtime is not None:
                 runtime.close()
             if previous is None:
