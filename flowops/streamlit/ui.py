@@ -645,6 +645,12 @@ class FlowOpsUI:
         working = canvas_book
         selection_key = f"flowops:node:{book.id}"
         canvas_selection_key = f"flowops:canvas-selection:{book.id}"
+        suppress_key = f"flowops:suppress-canvas-selection:{book.id}"
+        suppressed = st.session_state.pop(suppress_key, None)
+        if suppressed is not None and canvas_selected == suppressed:
+            # Ignore the single stale selected_id emitted while the canvas
+            # widget identity is reset after closing a node dialog.
+            canvas_selected = None
         pending = st.session_state.pop(f"flowops:pending-node:{book.id}", None)
         if pending is not None:
             st.session_state[selection_key] = pending

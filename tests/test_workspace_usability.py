@@ -321,6 +321,30 @@ def test_live_view_reads_fresh_checkpoint_and_exports_failed_node(
         assert any("Simulação" in text for text in fake.infos)
 
 
+def test_dismiss_node_acknowledges_canvas_selection(monkeypatch: pytest.MonkeyPatch) -> None:
+    from flowops.streamlit.node_editor import dismiss_node
+
+    book_id = "book"
+    session_state = {
+        f"flowops:node:{book_id}": "query",
+        f"flowops:node-dialog:{book_id}": "query",
+        f"flowops:canvas-selection:{book_id}": "previous",
+        f"flowops-canvas-{book_id}:hash": "stale",
+    }
+    monkeypatch.setitem(
+        sys.modules,
+        "streamlit",
+        SimpleNamespace(session_state=session_state),
+    )
+
+    dismiss_node(book_id)
+
+    assert f"flowops:node-dialog:{book_id}" not in session_state
+    assert f"flowops:canvas-selection:{book_id}" not in session_state
+    assert session_state[f"flowops:suppress-canvas-selection:{book_id}"] == "query"
+    assert f"flowops-canvas-{book_id}:hash" not in session_state
+
+
 def test_logic_fields_cannot_partially_apply_or_bypass_permissions() -> None:
     from flowops.streamlit.node_editor import initial_config
     from tests.test_visual_authoring import SCRIPT, widget

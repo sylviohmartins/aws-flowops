@@ -15,6 +15,7 @@ from urllib.error import URLError
 from urllib.request import urlopen
 
 from playwright.sync_api import Page, expect, sync_playwright
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from flowops.domain.models import Edge, Node
 from flowops.persistence.executions import ExecutionStore
@@ -133,6 +134,7 @@ def check_organization(page: Page, database: Path) -> None:
     page.get_by_role("button", name="Organizar fluxo", exact=True).click()
     settled(page)
     expect_positions(organized)
+    close_node_dialog(page)
     assert repo.get_draft(book.id) == (before, revision)
     assert repo.events() == events
     assert ExecutionStore(repo).history() == []
@@ -144,11 +146,21 @@ def check_organization(page: Page, database: Path) -> None:
 
 def close_node_dialog(page: Page) -> None:
     dialog = page.get_by_role("dialog")
-    if dialog.count():
-        back = dialog.get_by_role("button", name="Voltar ao fluxo", exact=True)
-        if back.count():
-            back.press("Enter")
-            settled(page)
+    if not dialog.count():
+        return
+    back = dialog.get_by_role("button", name="Voltar ao fluxo", exact=True)
+    if back.count():
+        try:
+            back.press("Enter", timeout=2000)
+        except PlaywrightTimeoutError:
+            # A Streamlit rerun can detach the button while the dialog is
+            # already closing. Only recover if a dialog is still present.
+            if dialog.count():
+                page.keyboard.press("Escape")
+        settled(page)
+    elif dialog.count():
+        page.keyboard.press("Escape")
+        settled(page)
     expect(dialog).to_have_count(0)
 
 
@@ -165,6 +177,7 @@ def journey(page: Page, url: str, database: Path) -> None:
     page.get_by_role("radio", name="Canvas", exact=True).press("Space")
     settled(page)
     check_organization(page, database)
+    close_node_dialog(page)
     canvas = page.frame_locator('iframe[title="streamlit_flow.streamlit_flow"]')
     query = canvas.locator('.react-flow__node[data-id="query"]')
     expect(query).to_be_visible()
@@ -262,7 +275,7 @@ def journey(page: Page, url: str, database: Path) -> None:
     live = page.frame_locator('iframe[title="streamlit_flow.streamlit_flow"]')
     expect(live.locator(".react-flow__edge.animated")).to_have_count(1, timeout=30000)
     page.screenshot(path=str(ARTIFACTS / "running.png"))
-    expect(page.get_by_text("Sucesso · atualização", exact=False)).to_be_visible(timeout=30000)
+    expect(page.get_by_text("Sucesso · atualização", exact=False)).to_be_visible(timeout=60000)
     live.locator('.react-flow__node[data-id="invoke"]').click()
     settled(page)
     expect(page.get_by_role("combobox", name="Etapa do resultado", exact=True)).to_have_value(

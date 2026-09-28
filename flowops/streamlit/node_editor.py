@@ -81,6 +81,12 @@ def dismiss_node(book_id: str) -> None:
     import streamlit as st
 
     st.session_state.pop(f"flowops:node-dialog:{book_id}", None)
+    selected = st.session_state.get(f"flowops:node:{book_id}")
+    if isinstance(selected, str):
+        # streamlit-flow 1.6.1 can emit the previous selected_id once while a
+        # new widget identity is replacing the old canvas. Mark only that echo
+        # for suppression; a later real click on the same node must still work.
+        st.session_state[f"flowops:suppress-canvas-selection:{book_id}"] = selected
     st.session_state.pop(f"flowops:canvas-selection:{book_id}", None)
     st.session_state.pop(f"flowops-canvas-{book_id}:hash", None)
 
