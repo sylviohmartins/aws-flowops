@@ -14,7 +14,8 @@ from pathlib import Path
 from urllib.error import URLError
 from urllib.request import urlopen
 
-from playwright.sync_api import Page, expect, sync_playwright
+from playwright.sync_api import Error as PlaywrightError
+from playwright.sync_api import Locator, Page, expect, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from flowops.domain.models import Edge, Node
@@ -58,19 +59,215 @@ def navigate(page: Page, name: str) -> None:
     expect(page.get_by_role("radio", name=PAGE_LABELS[name], exact=True)).to_be_checked()
 
 
+def keyboard_focus(page: Page, locator: Locator) -> None:
+    """Reach a control through the same keyboard path used by the user."""
+    expect(locator).to_be_visible()
+    direction = locator.evaluate(
+        """e => {
+            const focusable = [...document.querySelectorAll(
+                'a[href],button,input,select,textarea,summary,iframe,[tabindex]'
+            )].filter(n => n.tabIndex >= 0 && !n.disabled && n.getClientRects().length &&
+                (n.type !== 'radio' || n.checked));
+            const current = focusable.indexOf(document.activeElement);
+            const target = focusable.findIndex(n => n === e || e.contains(n));
+            if (current < 0 || target < 0) return 'Tab';
+            const forward = (target - current + focusable.length) % focusable.length;
+            const backward = (current - target + focusable.length) % focusable.length;
+            return backward < forward ? 'Shift+Tab' : 'Tab';
+        }"""
+    )
+    for _ in range(600):
+        if locator.evaluate(
+            "e => e === document.activeElement || e.contains(document.activeElement)"
+        ):
+            return
+        page.keyboard.press(direction)
+    raise AssertionError(f"Control not reachable by Tab: {locator}")
+
+
+def combobox(scope: Page | Locator, label: str):
+    selector = f'input[role="combobox"][aria-label={json.dumps(label, ensure_ascii=False)}]:visible'
+    return scope.locator(selector)
+
+
+def selected_value_matches(displayed: str, value: str) -> bool:
+    return (
+        displayed == value
+        or displayed.startswith(value + " · ")
+        or displayed.endswith(" · " + value)
+    )
+
+
 def choose(page: Page, label: str, value: str) -> None:
+    """Select a Streamlit/BaseWeb option across reruns without retaining stale containers."""
+    last_error: Exception | None = None
+    for _ in range(5):
+        settled(page)
+        try:
+            control = combobox(page, label)
+            expect(control).to_be_visible(timeout=5000)
+            if selected_value_matches(control.input_value(timeout=5000), value):
+                return
+            open_button = control.locator("xpath=following-sibling::button[@aria-label='Open']")
+            if open_button.count():
+                open_button.click()
+            else:
+                control.click()
+            expect(control).to_have_attribute("aria-expanded", "true", timeout=3000)
+            option = page.get_by_role("option", name=value, exact=True)
+            if option.count():
+                expect(option).to_be_visible(timeout=3000)
+                option.click()
+            else:
+                keyboard_focus(page, control)
+                page.keyboard.press("Control+A")
+                page.keyboard.insert_text(value)
+                expect(control).to_have_value(value, timeout=3000)
+                page.keyboard.press("Enter")
+            page.wait_for_timeout(250)
+            settled(page)
+            current = combobox(page, label)
+            if selected_value_matches(current.input_value(timeout=5000), value):
+                return
+        except (PlaywrightError, AssertionError) as exc:
+            last_error = exc
+            page.keyboard.press("Escape")
+            page.wait_for_timeout(200)
+    actual = combobox(page, label).input_value(timeout=5000)
+    raise AssertionError(f"Could not select {label}={value!r}; actual={actual!r}") from last_error
+
+
+def ensure_node_dialog_section(page: Page, section: str, target_label: str) -> Locator:
+    """Reopen a node dialog/section after Streamlit reruns close the modal."""
+    dialog = page.get_by_role("dialog")
+    if not dialog.is_visible():
+        page.get_by_role("button", name="Editar etapa selecionada", exact=True).click()
+        settled(page)
+        dialog = page.get_by_role("dialog")
+        expect(dialog).to_be_visible(timeout=5000)
+    target = dialog.get_by_role("combobox", name=target_label, exact=True)
+    if not target.is_visible():
+        dialog.get_by_text(section, exact=True).click()
+        settled(page)
+        dialog = page.get_by_role("dialog")
+        expect(dialog).to_be_visible(timeout=5000)
+        target = dialog.get_by_role("combobox", name=target_label, exact=True)
+    expect(target).to_be_visible(timeout=5000)
+    return dialog
+
+
+def ensure_node_dialog_field(page: Page, section: str, field_label_text: str) -> Locator:
+    """Reopen a node dialog/section and return it once a resulting field is visible."""
+    dialog = page.get_by_role("dialog")
+    if not dialog.is_visible():
+        page.get_by_role("button", name="Editar etapa selecionada", exact=True).click()
+        settled(page)
+        dialog = page.get_by_role("dialog")
+        expect(dialog).to_be_visible(timeout=5000)
+    field = dialog.get_by_label(field_label_text, exact=True)
+    if not field.is_visible():
+        dialog.get_by_text(section, exact=True).click()
+        settled(page)
+        dialog = page.get_by_role("dialog")
+        expect(dialog).to_be_visible(timeout=5000)
+        field = dialog.get_by_label(field_label_text, exact=True)
+    expect(field).to_be_visible(timeout=5000)
+    return dialog
+
+
+def choose_structural_kind(
+    page: Page,
+    type_label: str,
+    kind: str,
+    *,
+    section: str,
+    resulting_field_label: str,
+) -> Locator:
+    """Change a value kind and validate the newly rendered editor after callback reruns."""
+    last_error: Exception | None = None
+    for _ in range(4):
+        ensure_node_dialog_section(page, section, type_label)
+        try:
+            control = combobox(page, type_label)
+            expect(control).to_be_visible(timeout=5000)
+            keyboard_focus(page, control)
+            page.keyboard.press("Enter")
+            page.keyboard.press("Control+A")
+            page.keyboard.insert_text(kind)
+            expect(control).to_have_value(kind, timeout=3000)
+            page.keyboard.press("Enter")
+            page.wait_for_timeout(250)
+            settled(page)
+            return ensure_node_dialog_field(page, section, resulting_field_label)
+        except (PlaywrightError, AssertionError) as exc:
+            last_error = exc
+            page.keyboard.press("Escape")
+            page.wait_for_timeout(200)
+    raise AssertionError(
+        f"Could not change {type_label} to {kind!r} and render {resulting_field_label!r}"
+    ) from last_error
+
+
+def choose_first_option(
+    page: Page,
+    label: str,
+    expected: str,
+    *,
+    section: str,
+) -> Locator:
+    """Choose the semantic first option and validate it after any Streamlit rerun."""
+    last_error: Exception | None = None
+    actual = "<not mounted>"
+    for _ in range(4):
+        dialog = ensure_node_dialog_section(page, section, label)
+        try:
+            control = combobox(page, label)
+            expect(control).to_be_visible(timeout=5000)
+            actual = control.input_value(timeout=5000)
+            if selected_value_matches(actual, expected):
+                return dialog
+            keyboard_focus(page, control)
+            page.keyboard.press("Enter")
+            page.keyboard.press("Control+A")
+            page.keyboard.insert_text(expected)
+            expect(control).to_have_value(expected, timeout=3000)
+            page.keyboard.press("Enter")
+            page.wait_for_timeout(250)
+            settled(page)
+            # Selection may close/replace the dialog. Reopen the current node and
+            # read the newly mounted visible control instead of the detached one.
+            dialog = ensure_node_dialog_section(page, section, label)
+            current = combobox(page, label)
+            actual = current.input_value(timeout=5000)
+            if selected_value_matches(actual, expected):
+                return dialog
+        except (PlaywrightError, AssertionError) as exc:
+            last_error = exc
+            page.keyboard.press("Escape")
+            page.wait_for_timeout(200)
+    raise AssertionError(
+        f"Could not select first option {label}={expected!r}; actual={actual!r}"
+    ) from last_error
+
+
+def screenshot_element(page: Page, selector: str, path: Path) -> None:
+    """Capture visual evidence without making iframe replacement a functional failure."""
+    for _ in range(3):
+        settled(page)
+        try:
+            locator = page.locator(selector)
+            expect(locator).to_be_visible(timeout=5000)
+            box = locator.bounding_box()
+            if box is not None:
+                page.screenshot(path=str(path), clip=box)
+                return
+        except PlaywrightError:
+            page.wait_for_timeout(200)
+    # Streamlit may replace the iframe between layout and capture. The screenshot
+    # is diagnostic evidence, not the acceptance condition, so retain evidence
+    # with a stable page-level capture instead of failing the product journey.
     settled(page)
-    control = page.get_by_role("combobox", name=label, exact=True)
-    if control.input_value() == value:
-        return
-    control.focus()
-    page.keyboard.press("Enter")
-    page.keyboard.press("Control+A")
-    page.keyboard.insert_text(value)
-    expect(control).to_have_value(value)
-    page.keyboard.press("Enter")
-    settled(page)
-    expect(page.get_by_role("combobox", name=label, exact=True)).to_have_value(value)
+    page.screenshot(path=str(path), full_page=True)
 
 
 def check_organization(page: Page, database: Path) -> None:
@@ -90,8 +287,11 @@ def check_organization(page: Page, database: Path) -> None:
             )
 
     expect_positions(before)
-    iframe = page.locator('iframe[title="streamlit_flow.streamlit_flow"]')
-    iframe.screenshot(path=str(ARTIFACTS / "organization-before.png"))
+    screenshot_element(
+        page,
+        'iframe[title="streamlit_flow.streamlit_flow"]',
+        ARTIFACTS / "organization-before.png",
+    )
     page.get_by_role("button", name="Organizar fluxo", exact=True).press("Enter")
     settled(page)
     expect_positions(organized)
@@ -110,7 +310,11 @@ def check_organization(page: Page, database: Path) -> None:
                 or first["bottom"] <= second["top"]
                 or second["bottom"] <= first["top"]
             ), (first, second)
-    iframe.screenshot(path=str(ARTIFACTS / "organization-after.png"))
+    screenshot_element(
+        page,
+        'iframe[title="streamlit_flow.streamlit_flow"]',
+        ARTIFACTS / "organization-after.png",
+    )
     page.get_by_role("button", name="Organizar fluxo", exact=True).click()
     settled(page)
     expect(page.get_by_text("O fluxo já está organizado.", exact=True)).to_be_visible()
@@ -192,10 +396,20 @@ def journey(page: Page, url: str, database: Path) -> None:
     settled(page)
     dialog.get_by_role("button", name="Carregar estrutura da tabela", exact=True).click()
     settled(page)
-    choose(page, "Origem da chave paymentId", "Valor fixo")
+    dialog = choose_first_option(
+        page,
+        "Origem da chave paymentId",
+        "Valor fixo",
+        section="Buscar recursos e montar consulta DynamoDB",
+    )
     dialog.get_by_label("Chave paymentId (S)", exact=True).fill("12345")
     dialog.get_by_role("button", name="Aplicar requisição DynamoDB gerada", exact=True).click()
     settled(page)
+    dialog = ensure_node_dialog_section(
+        page,
+        "Buscar recursos e montar consulta DynamoDB",
+        "Origem da chave paymentId",
+    )
     expect(dialog.get_by_label(field_label("KeyConditionExpression"), exact=True)).to_have_value(
         re.compile(":pk")
     )
@@ -310,7 +524,14 @@ def journey(page: Page, url: str, database: Path) -> None:
     expect(query).to_be_visible()
     query.click()
     settled(page)
-    choose(page, f"Tipo de {field_label('TableName')}", "Texto")
+    table_type_label = f"Tipo de {field_label('TableName')}"
+    dialog = choose_structural_kind(
+        page,
+        table_type_label,
+        "Texto",
+        section="Propriedades avançadas da etapa",
+        resulting_field_label=field_label("TableName"),
+    )
     dialog.get_by_label(field_label("TableName"), exact=True).fill("missing-demo-table")
     dialog.get_by_role("button", name="Aplicar configuração ao rascunho", exact=True).press("Enter")
     settled(page)

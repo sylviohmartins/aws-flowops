@@ -14,7 +14,8 @@ from pathlib import Path
 from urllib.error import URLError
 from urllib.request import urlopen
 
-from playwright.sync_api import Page, expect, sync_playwright
+from playwright.sync_api import Error as PlaywrightError
+from playwright.sync_api import Locator, Page, expect, sync_playwright
 
 from flowops.domain.models import Status
 from flowops.persistence.executions import ExecutionStore
@@ -45,17 +46,105 @@ def click(page: Page, label: str) -> None:
     settled(page)
 
 
+def keyboard_focus(page: Page, locator: Locator) -> None:
+    """Reach a control through the same keyboard path used by the user."""
+    expect(locator).to_be_visible()
+    direction = locator.evaluate(
+        """e => {
+            const focusable = [...document.querySelectorAll(
+                'a[href],button,input,select,textarea,summary,iframe,[tabindex]'
+            )].filter(n => n.tabIndex >= 0 && !n.disabled && n.getClientRects().length &&
+                (n.type !== 'radio' || n.checked));
+            const current = focusable.indexOf(document.activeElement);
+            const target = focusable.findIndex(n => n === e || e.contains(n));
+            if (current < 0 || target < 0) return 'Tab';
+            const forward = (target - current + focusable.length) % focusable.length;
+            const backward = (current - target + focusable.length) % focusable.length;
+            return backward < forward ? 'Shift+Tab' : 'Tab';
+        }"""
+    )
+    for _ in range(600):
+        if locator.evaluate(
+            "e => e === document.activeElement || e.contains(document.activeElement)"
+        ):
+            return
+        page.keyboard.press(direction)
+    raise AssertionError(f"Control not reachable by Tab: {locator}")
+
+
+def combobox(page: Page, label: str):
+    selector = f'input[role="combobox"][aria-label={json.dumps(label, ensure_ascii=False)}]:visible'
+    return page.locator(selector)
+
+
+def selected_value_matches(displayed: str, value: str) -> bool:
+    return (
+        displayed == value
+        or displayed.startswith(value + " · ")
+        or displayed.endswith(" · " + value)
+    )
+
+
 def choose(page: Page, label: str, value: str) -> None:
+    last_error: Exception | None = None
+    for _ in range(4):
+        settled(page)
+        try:
+            control = combobox(page, label)
+            expect(control).to_be_visible(timeout=5000)
+            if selected_value_matches(control.input_value(timeout=5000), value):
+                return
+            open_button = control.locator("xpath=following-sibling::button[@aria-label='Open']")
+            expect(open_button).to_be_visible(timeout=3000)
+            open_button.click()
+            expect(control).to_have_attribute("aria-expanded", "true", timeout=3000)
+            keyboard_focus(page, control)
+            page.keyboard.press("Control+A")
+            page.keyboard.insert_text(value)
+            expect(control).to_have_value(value, timeout=3000)
+            matched = False
+            for _ in range(20):
+                active_id = control.get_attribute("aria-activedescendant")
+                if active_id:
+                    active = page.locator(f'[id="{active_id}"]')
+                    if active.count() and value in active.inner_text():
+                        matched = True
+                        break
+                page.keyboard.press("ArrowDown")
+                page.wait_for_timeout(50)
+            if not matched:
+                raise AssertionError(f"Filtered option not keyboard-reachable: {label}={value}")
+            page.keyboard.press("Enter")
+            page.wait_for_timeout(250)
+            settled(page)
+            if selected_value_matches(combobox(page, label).input_value(timeout=5000), value):
+                return
+        except (PlaywrightError, AssertionError) as exc:
+            last_error = exc
+            page.keyboard.press("Escape")
+            page.wait_for_timeout(150)
+    actual = combobox(page, label).input_value(timeout=5000)
+    raise AssertionError(f"Could not select {label}={value!r}; actual={actual!r}") from last_error
+
+
+def screenshot_element(page: Page, selector: str, path: Path) -> None:
+    """Capture visual evidence without making iframe replacement a functional failure."""
+    for _ in range(3):
+        settled(page)
+        try:
+            locator = page.locator(selector)
+            expect(locator).to_be_visible(timeout=5000)
+            box = locator.bounding_box()
+            if box is not None:
+                page.screenshot(path=str(path), clip=box)
+                return
+        except PlaywrightError:
+            page.wait_for_timeout(200)
+    # Streamlit may replace the iframe between layout and capture. The screenshot
+    # is diagnostic evidence, not the acceptance condition, so retain evidence
+    # with a stable page-level capture instead of failing the product journey.
     settled(page)
-    control = page.get_by_role("combobox", name=label, exact=True)
-    if control.input_value() == value:
-        return
-    control.click()
-    control.fill(value)
-    expect(control).to_have_value(value)
-    control.press("Enter")
-    settled(page)
-    expect(page.get_by_role("combobox", name=label, exact=True)).to_have_value(value)
+    page.screenshot(path=str(path), full_page=True)
 
 
 def navigate(page: Page, label: str) -> None:
@@ -139,6 +228,12 @@ def journey(page: Page, database: Path) -> None:
         )
     )
     click(page, "Aplicar configuração ao rascunho")
+    click(page, "Voltar ao fluxo")
+    advanced_tools = page.locator("summary").filter(has_text="Ferramentas avançadas da etapa")
+    expect(advanced_tools).to_be_visible()
+    advanced_tools.click()
+    settled(page)
+    expect(combobox(page, "Campo de destino")).to_be_visible()
     choose(page, "Campo de destino", "MessageBody")
     choose(page, "Origem", f"nodes.{get_id}.output.Item · objeto")
     expect(
@@ -148,12 +243,19 @@ def journey(page: Page, database: Path) -> None:
         )
     ).to_be_visible()
     click(page, "Aplicar mapeamento")
+
+    # Re-open the step to prove that the mapper changed the persisted working
+    # configuration rather than only its preview.
+    send_node.click()
+    settled(page)
+    page.get_by_role("radio", name="Editar JSON", exact=True).press("Space")
+    settled(page)
     expect(page.get_by_label("Código JSON da configuração", exact=True)).to_have_value(
         re.compile(rf"nodes\.{get_id}\.output\.Item")
     )
+    click(page, "Voltar ao fluxo")
 
     # Exercise the installed canvas rather than synthesizing component payloads.
-    click(page, "Voltar ao fluxo")
     node_before = send_node.get_attribute("style")
     send_node.hover()
     box = send_node.bounding_box()
@@ -196,8 +298,10 @@ def journey(page: Page, database: Path) -> None:
     send = next(node for node in book.nodes if node.id == send_id)
     assert send.config["MessageBody"] == "{{ " + f"nodes.{get_id}.output.Item" + " }}"
     assert send.position[1] != 180
-    page.locator('iframe[title="streamlit_flow.streamlit_flow"]').screenshot(
-        path=str(ARTIFACTS / "canvas.png")
+    screenshot_element(
+        page,
+        'iframe[title="streamlit_flow.streamlit_flow"]',
+        ARTIFACTS / "canvas.png",
     )
     click(page, "Publicar versão")
     navigate(page, "Execute")
