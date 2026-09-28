@@ -5,6 +5,7 @@ from flowops.domain.errors import WorkflowValidationError
 from flowops.domain.models import Edge, Node, Runbook
 from flowops.streamlit.flow_journey import branch_options, connect, ordered_nodes
 from flowops.templates import dynamodb_query_lambda
+from tests.app_test_support import close_app_runtime
 
 
 def test_keyboard_connections_preserve_graph_and_reject_unsafe_topology() -> None:
@@ -70,7 +71,6 @@ st.json([edge.model_dump() for edge in working.edges])
 def test_assistant_and_list_share_same_session_draft(tmp_path, monkeypatch) -> None:
     from pathlib import Path
 
-    from flowops.application import FlowOpsRuntime
     from flowops.persistence.repository import Repository
 
     monkeypatch.setenv("FLOWOPS_DATABASE", str(tmp_path / "guide.db"))
@@ -119,6 +119,4 @@ def test_assistant_and_list_share_same_session_draft(tmp_path, monkeypatch) -> N
         assert len([w for w in app.radio if w.label == "Modo de configuração"]) == 1
         assert repo.get_draft(book.id) == original
     finally:
-        for value in app.session_state.filtered_state.values():
-            if isinstance(value, FlowOpsRuntime):
-                value.close()
+        close_app_runtime(app, repo)

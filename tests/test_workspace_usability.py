@@ -8,7 +8,6 @@ from types import SimpleNamespace
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from flowops.application import FlowOpsRuntime
 from flowops.core.actions import ActionContext
 from flowops.core.engine import Engine
 from flowops.core.policies import PolicyEngine
@@ -22,6 +21,7 @@ from flowops.providers.aws.query_builder import build_read
 from flowops.streamlit.canvas import edge_visual
 from flowops.streamlit.results import result_csv
 from flowops.templates import dynamodb_query_lambda
+from tests.app_test_support import close_app_runtime, runtime_from_app
 
 
 @pytest.mark.parametrize("simulation", [True, False])
@@ -199,12 +199,10 @@ def test_guide_catalog_and_node_dialog_do_not_persist_on_render(
             widget for widget in app.button if widget.label == "Remover etapa selecionada"
         ).click().run(timeout=30)
         assert not app.exception
-        assert f"flowops:node-dialog:{book.id}" not in app.session_state.filtered_state
+        assert f"flowops:node-dialog:{book.id}" not in app.session_state
         assert repo.get_draft(book.id)[1] == 2
     finally:
-        for value in app.session_state.filtered_state.values():
-            if isinstance(value, FlowOpsRuntime):
-                value.close()
+        close_app_runtime(app, repo)
 
 
 def test_logic_dialog_validation_catalog_filters_and_two_person_gate(
@@ -262,11 +260,7 @@ def test_logic_dialog_validation_catalog_filters_and_two_person_gate(
         widget("text_input", "Buscar operação").set_value("describe_hosts").run(timeout=30)
         assert any("lista de permissões explícita" in item.value for item in app.info)
         assert repo.get_draft(book.id)[1] == 1
-        runtime = next(
-            value
-            for value in app.session_state.filtered_state.values()
-            if isinstance(value, FlowOpsRuntime)
-        )
+        runtime = runtime_from_app(app, repo)
         published = repo.publish(book.id, "demo-author", 1)
         actor = Identity(id="demo-author", roles=["ADMIN"])
         execution = runtime.engine.submit(
@@ -279,9 +273,7 @@ def test_logic_dialog_validation_catalog_filters_and_two_person_gate(
         assert widget("button", "Aprovar").disabled and widget("button", "Rejeitar").disabled
         assert any("outra pessoa" in item.value for item in app.warning)
     finally:
-        for value in app.session_state.filtered_state.values():
-            if isinstance(value, FlowOpsRuntime):
-                value.close()
+        close_app_runtime(app, repo)
 
 
 @pytest.mark.parametrize("status", [Status.WAITING_APPROVAL, Status.FAILED, Status.SUCCESS])

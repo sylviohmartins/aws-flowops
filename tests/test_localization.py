@@ -23,6 +23,7 @@ from flowops.streamlit.localization import (
     schema_view,
 )
 from flowops.templates import TEMPLATES
+from tests.app_test_support import close_app_runtime
 
 
 def test_display_preserves_identifiers_and_unknown_user_values() -> None:
@@ -196,7 +197,6 @@ def test_new_template_draft_is_localized_existing_snapshot_is_unchanged(
 ) -> None:
     from streamlit.testing.v1 import AppTest
 
-    from flowops.application import FlowOpsRuntime
     from flowops.persistence.repository import Repository
 
     database = tmp_path / "templates.db"
@@ -227,6 +227,4 @@ def test_new_template_draft_is_localized_existing_snapshot_is_unchanged(
         assert repo.version(original.id, 1) == published
         assert repo.get_draft(original.id) == saved_original
     finally:
-        for value in app.session_state.filtered_state.values():
-            if isinstance(value, FlowOpsRuntime):
-                value.close()
+        close_app_runtime(app, repo)

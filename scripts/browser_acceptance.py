@@ -103,10 +103,11 @@ def journey(page: Page, database: Path) -> None:
     expect(page.get_by_role("combobox", name="Propriedades da etapa", exact=True)).to_have_value(
         re.compile("dynamodb.get_item")
     )
-    page.get_by_role("radio", name="Editar JSON", exact=True).click()
+    page.get_by_role("radio", name="Editar JSON", exact=True).press("Space")
     settled(page)
     config = page.get_by_label("Código JSON da configuração", exact=True)
-    expect(config).to_have_value("{}")
+    initial_config = json.loads(config.input_value())
+    assert initial_config["TableName"] == "" and initial_config["Key"] == {}
     config.fill(json.dumps({"TableName": "payments", "Key": {"paymentId": {"S": "12345"}}}))
     click(page, "Aplicar configuração ao rascunho")
     click(page, "Voltar ao fluxo")
@@ -122,7 +123,7 @@ def journey(page: Page, database: Path) -> None:
     expect(page.get_by_role("combobox", name="Propriedades da etapa", exact=True)).to_have_value(
         re.compile("sqs.send_message")
     )
-    page.get_by_role("radio", name="Editar JSON", exact=True).click()
+    page.get_by_role("radio", name="Editar JSON", exact=True).press("Space")
     settled(page)
     config = page.get_by_label("Código JSON da configuração", exact=True)
     config.fill(
@@ -137,7 +138,10 @@ def journey(page: Page, database: Path) -> None:
     choose(page, "Campo de destino", "MessageBody")
     choose(page, "Origem", f"nodes.{get_id}.output.Item · objeto")
     expect(
-        page.get_by_text("Tipos compatíveis: objeto → qualquer tipo", exact=True)
+        page.get_by_text(
+            "Tipo ainda desconhecido; a compatibilidade será conferida quando houver dados.",
+            exact=True,
+        )
     ).to_be_visible()
     click(page, "Aplicar mapeamento")
     expect(page.get_by_label("Código JSON da configuração", exact=True)).to_have_value(

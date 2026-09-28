@@ -10,6 +10,23 @@ from flowops.streamlit.layout import render_workspace_style
 from flowops.streamlit.localization import display, render_error
 
 
+def runtime_session_key(
+    repository: Repository,
+    aws_context: AWSContext | None = None,
+    generic_allowlist: set[str] | None = None,
+) -> str:
+    """Return the stable Streamlit session key used for a FlowOps runtime."""
+    context = aws_context or AWSContext()
+    fingerprint = digest(
+        {
+            "repository": repository.database,
+            "context": context.model_dump(mode="json"),
+            "generic_allowlist": sorted(generic_allowlist or set()),
+        }
+    )[:20]
+    return f"flowops:runtime:{fingerprint}"
+
+
 class FlowOpsPage:
     """Embed FlowOps by supplying trusted identity/context, not persistence internals."""
 
@@ -40,14 +57,11 @@ class FlowOpsPage:
             return self.runtime
         import streamlit as st
 
-        fingerprint = digest(
-            {
-                "repository": self.repository.database,
-                "context": self.aws_context.model_dump(mode="json"),
-                "generic_allowlist": sorted(self.generic_allowlist),
-            }
-        )[:20]
-        key = f"flowops:runtime:{fingerprint}"
+        key = runtime_session_key(
+            self.repository,
+            self.aws_context,
+            self.generic_allowlist,
+        )
         runtime = st.session_state.get(key)
         if not isinstance(runtime, FlowOpsRuntime):
             if self.aws_context.mode == "demo":

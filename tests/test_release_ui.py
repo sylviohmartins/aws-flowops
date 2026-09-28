@@ -10,6 +10,7 @@ from flowops.application import FlowOpsRuntime
 from flowops.domain.models import AWSContext, Edge, Identity, Node, Status
 from flowops.persistence.repository import Repository
 from flowops.templates import blank
+from tests.app_test_support import close_app_runtime
 
 
 def element(elements: Any, label: str) -> Any:
@@ -78,9 +79,7 @@ class ReleaseUITests(unittest.TestCase):
                 self.assertFalse(app.exception)
             finally:
                 if app is not None:
-                    for value in app.session_state.filtered_state.values():
-                        if isinstance(value, FlowOpsRuntime):
-                            value.close()
+                    close_app_runtime(app, repository)
                 if previous is None:
                     os.environ.pop("FLOWOPS_DATABASE", None)
                 else:
@@ -124,6 +123,4 @@ FlowOpsPage(Identity(id="admin", roles=["ADMIN"]), AWSContext(environment="produ
             app.run(timeout=25)
             self.assertFalse(app.exception)
             self.assertEqual(len(runtime.engine.store.history()), 2)
-            for value in app.session_state.filtered_state.values():
-                if isinstance(value, FlowOpsRuntime):
-                    value.close()
+            close_app_runtime(app, repository, context)

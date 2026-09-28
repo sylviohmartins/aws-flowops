@@ -12,6 +12,7 @@ from flowops.application import FlowOpsRuntime
 from flowops.domain.models import AWSContext, Edge, Identity, Node, Runbook, Status
 from flowops.persistence.executions import ExecutionStore
 from flowops.persistence.repository import Repository
+from tests.app_test_support import close_app_runtime
 
 
 def element(elements: Any, label: str) -> Any:
@@ -65,9 +66,7 @@ def test_runbook_management_and_resource_discovery_journey() -> None:
             )
         finally:
             if app is not None:
-                for value in app.session_state.filtered_state.values():
-                    if isinstance(value, FlowOpsRuntime):
-                        value.close()
+                close_app_runtime(app, Repository(database))
             if previous is None:
                 os.environ.pop("FLOWOPS_DATABASE", None)
             else:
@@ -159,9 +158,7 @@ def test_manual_approval_and_rerun_journey() -> None:
             assert element(app.selectbox, "Detalhes do evento") is not None
         finally:
             if app is not None:
-                for value in app.session_state.filtered_state.values():
-                    if isinstance(value, FlowOpsRuntime):
-                        value.close()
+                close_app_runtime(app, repository)
             if runtime is not None:
                 runtime.close()
             if previous is None:
