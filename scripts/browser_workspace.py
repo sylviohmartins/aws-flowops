@@ -137,6 +137,52 @@ def choose(page: Page, label: str, value: str) -> None:
     raise AssertionError(f"Could not select {label}={value!r}; actual={actual!r}") from last_error
 
 
+def select_assistant_step(
+    page: Page,
+    value: str,
+    *,
+    expected_label: str,
+) -> None:
+    """Select an assistant step and wait for its server-rendered editor."""
+    last_error: Exception | None = None
+    for _ in range(4):
+        try:
+            choose(page, "Propriedades da etapa", value)
+            settled(page)
+            field = page.get_by_label(expected_label, exact=True)
+            expect(field).to_be_visible(timeout=5000)
+            return
+        except (PlaywrightError, AssertionError) as exc:
+            last_error = exc
+            page.wait_for_timeout(200)
+    raise AssertionError(
+        f"Assistant step {value!r} did not render expected field {expected_label!r}"
+    ) from last_error
+
+
+def select_result_node(page: Page, node_id: str) -> None:
+    """Click a result node until Streamlit's result selector acknowledges it."""
+    last_error: Exception | None = None
+    for _ in range(4):
+        try:
+            frame = page.frame_locator('iframe[title="streamlit_flow.streamlit_flow"]')
+            node = frame.locator(f'.react-flow__node[data-id="{node_id}"]')
+            expect(node).to_be_visible(timeout=5000)
+            node.click()
+            settled(page)
+            selector = combobox(page, "Etapa do resultado")
+            expect(selector).to_be_visible(timeout=5000)
+            if selector.input_value(timeout=5000) == node_id:
+                return
+        except (PlaywrightError, AssertionError) as exc:
+            last_error = exc
+        page.wait_for_timeout(200)
+    actual = combobox(page, "Etapa do resultado").input_value(timeout=5000)
+    raise AssertionError(
+        f"Result node {node_id!r} was not acknowledged; selector={actual!r}"
+    ) from last_error
+
+
 def ensure_node_dialog_section(page: Page, section: str, target_label: str) -> Locator:
     """Reopen a node dialog/section after Streamlit reruns close the modal."""
     dialog = page.get_by_role("dialog")
@@ -352,23 +398,29 @@ def check_organization(page: Page, database: Path) -> None:
 
 
 def close_node_dialog(page: Page) -> None:
-    dialog = page.get_by_role("dialog")
-    if not dialog.count():
-        return
-    back = dialog.get_by_role("button", name="Voltar ao fluxo", exact=True)
-    if back.count():
+    """Close the current node dialog despite Streamlit rerun replacement races."""
+    last_error: Exception | None = None
+    for _ in range(4):
+        dialog = page.get_by_role("dialog")
+        if not dialog.count():
+            return
         try:
-            back.press("Enter", timeout=2000)
-        except PlaywrightTimeoutError:
-            # A Streamlit rerun can detach the button while the dialog is
-            # already closing. Only recover if a dialog is still present.
-            if dialog.count():
+            back = dialog.get_by_role("button", name="Voltar ao fluxo", exact=True)
+            if back.count():
+                back.press("Enter", timeout=2000)
+            else:
                 page.keyboard.press("Escape")
-        settled(page)
-    elif dialog.count():
-        page.keyboard.press("Escape")
-        settled(page)
-    expect(dialog).to_have_count(0)
+            page.wait_for_timeout(150)
+            settled(page)
+            if not page.get_by_role("dialog").count():
+                return
+        except (PlaywrightError, PlaywrightTimeoutError) as exc:
+            last_error = exc
+            page.keyboard.press("Escape")
+            page.wait_for_timeout(150)
+    dialog = page.get_by_role("dialog")
+    if dialog.count():
+        raise AssertionError("Node dialog remained open after repeated close attempts") from last_error
 
 
 def journey(page: Page, url: str, database: Path) -> None:
@@ -426,10 +478,13 @@ def journey(page: Page, url: str, database: Path) -> None:
     # Configure map/approval/payload through the guide, without editing JSON or expressions.
     page.get_by_role("radio", name="Assistente", exact=True).press("Space")
     settled(page)
-    choose(page, "Propriedades da etapa", "Preparar evento · core.map")
-    page.get_by_label(f"Nome do novo campo em {field_label('template')}", exact=True).fill(
-        "source_system"
+    template_field_label = f"Nome do novo campo em {field_label('template')}"
+    select_assistant_step(
+        page,
+        "Preparar evento · core.map",
+        expected_label=template_field_label,
     )
+    page.get_by_label(template_field_label, exact=True).fill("source_system")
     page.get_by_label(f"Nome do novo campo em {field_label('template')}", exact=True).press("Tab")
     settled(page)
     page.get_by_role(
@@ -494,11 +549,7 @@ def journey(page: Page, url: str, database: Path) -> None:
     expect(live.locator(".react-flow__edge.animated")).to_have_count(1, timeout=30000)
     page.screenshot(path=str(ARTIFACTS / "running.png"))
     expect(page.get_by_text("Sucesso · atualização", exact=False)).to_be_visible(timeout=60000)
-    live.locator('.react-flow__node[data-id="invoke"]').click()
-    settled(page)
-    expect(page.get_by_role("combobox", name="Etapa do resultado", exact=True)).to_have_value(
-        "invoke"
-    )
+    select_result_node(page, "invoke")
     with page.expect_download() as downloaded:
         page.get_by_role("button", name="Baixar resultado em JSON", exact=True).click()
     file = downloaded.value
@@ -559,11 +610,7 @@ def journey(page: Page, url: str, database: Path) -> None:
     # Wait for the complete terminal graph before interacting with its iframe.
     expect(failed.locator('.react-flow__node[data-id="end"]')).to_contain_text("Não executada")
     settled(page)
-    failed.locator('.react-flow__node[data-id="query"]').click()
-    settled(page)
-    expect(page.get_by_role("combobox", name="Etapa do resultado", exact=True)).to_have_value(
-        "query"
-    )
+    select_result_node(page, "query")
     # Streamlit streams sibling replacements: the selector can already say query while
     # the previous node's download is still mounted. Await the server-rendered node key.
     checkpoint_button = page.locator('[class*="-query-checkpoint"]').get_by_role(
