@@ -63,10 +63,12 @@ def choose(page: Page, label: str, value: str) -> None:
     control = page.get_by_role("combobox", name=label, exact=True)
     if control.input_value() == value:
         return
-    control.click()
-    control.fill(value)
+    control.focus()
+    page.keyboard.press("Enter")
+    page.keyboard.press("Control+A")
+    page.keyboard.insert_text(value)
     expect(control).to_have_value(value)
-    control.press("Enter")
+    page.keyboard.press("Enter")
     settled(page)
     expect(page.get_by_role("combobox", name=label, exact=True)).to_have_value(value)
 
