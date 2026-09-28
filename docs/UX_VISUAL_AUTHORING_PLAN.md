@@ -1,6 +1,6 @@
 # Autoria visual do AWS FlowOps Studio — plano em execução
 
-Plano original: 14/09/2026. Atualização de validação: 27/09/2026. Estado: **implementação automatizada validada localmente; CI remota da árvore candidata e avaliação humana permanecem pendentes**.
+Plano original: 14/09/2026. Atualização de validação: 28/09/2026. Estado: **implementação automatizada e CI remota da árvore candidata validadas; avaliação humana permanece pendente**.
 
 O usuário autorizou concluir todas as ondas em 16/09 e reforçou a reformulação visual próxima ao `starter-react-lib`: biblioteca/etapas, canvas central, inspetor contextual e barra compacta. O incremento em curso inclui parâmetros atômicos, criação por objetivo, revisão, histórico de edição e componente React delimitado. O registro corrente é `.agents/runs/visual-authoring-completion.json`; registros anteriores não certificam todos os critérios AC01–AC18. A avaliação humana tem participantes confirmados, mas ainda não há resultados; roteiro em [Avaliação com participantes](UX_AUTHORING_USER_STUDY.md).
 
@@ -12,7 +12,7 @@ A árvore corrente em `codex/code-defined-tours` foi validada localmente sem con
 
 Também estão verdes Ruff/formatação, mypy, Bandit, os três testes do editor React, build/reprodutibilidade do frontend, `npm audit`, `pip-audit` isolado e `python -m build`. Nenhuma dessas validações executou mutação em uma conta AWS real. A **Resource Discovery v2** usa caminhos somente leitura, explícitos e limitados; o laboratório usa Moto.
 
-Duas atividades permanecem deliberadamente fora do status concluído: (1) a CI remota da árvore **exata** depende de publicar um commit/branch candidato, ação não autorizada nesta rodada; (2) o estudo com cinco participantes técnicos e cinco não técnicos continua sem resultados reais. Nenhum resultado humano é inferido de teste automatizado.
+A árvore candidata foi publicada na branch `codex/code-defined-tours`. Para o SHA exato `f73eaee9acc5b12a1e4955305ddeb16b242c08f1`, o GitHub Actions executou o workflow `Quality` por `push` (run 36434488494) e por `pull_request` (run 36434498525); ambos terminaram em `success`. O estudo com cinco participantes técnicos e cinco não técnicos continua sem resultados reais. Nenhum resultado humano é inferido de teste automatizado.
 
 
 ## 1. Recomendação executiva
@@ -438,13 +438,13 @@ Os critérios abaixo nasceram como metas do plano. A coluna de reconciliação r
 | AC17 | PASS | `test_query_builder.py` + `test_dynamodb_authoring.py` cobrem chave/índice/tipos/limite e recusam combinações inválidas sem fallback silencioso para Scan. |
 | AC18 | PASS | `test_live_selection_regression.py`, sincronização de `flowops:selected_runbook`, undo/redo e browsers repetidos comprovam que reruns não reaplicam seleção obsoleta nem trocam o procedimento criado. |
 
-Com a confirmação direta por teclado dos `selectbox` BaseWeb, **AC01–AC18 estão automatizadamente comprovados no escopo definido**. Isso não substitui o estudo humano planejado nem a CI remota da árvore candidata.
+Com a confirmação direta por teclado dos `selectbox` BaseWeb, **AC01–AC18 estão automatizadamente comprovados no escopo definido**. A CI remota da árvore candidata exata também passou; isso não substitui o estudo humano planejado.
 
 ### Testes existentes a ampliar, não substituir
 
 [test_typed_inputs.py](C:/Development/projects/personal/aws-flowops/tests/test_typed_inputs.py:1), [test_query_builder.py](C:/Development/projects/personal/aws-flowops/tests/test_query_builder.py:1), [test_mapping.py](C:/Development/projects/personal/aws-flowops/tests/test_mapping.py:1), [test_serialization.py](C:/Development/projects/personal/aws-flowops/tests/test_serialization.py:1), [test_canvas_sync.py](C:/Development/projects/personal/aws-flowops/tests/test_canvas_sync.py:1), [test_streamlit_editor_journey.py](C:/Development/projects/personal/aws-flowops/tests/test_streamlit_editor_journey.py:1), [test_streamlit_business_journeys.py](C:/Development/projects/personal/aws-flowops/tests/test_streamlit_business_journeys.py:1), [test_results.py](C:/Development/projects/personal/aws-flowops/tests/test_results.py:1) e [browser_workspace.py](C:/Development/projects/personal/aws-flowops/scripts/browser_workspace.py:1).
 
-Na implementação aprovada: primeiro helpers puros e testes negativos, depois AppTest, depois navegador com fixtures, depois checks canônicos do repositório. Executar Ruff, mypy, pytest com cobertura mínima 96%, Bandit, auditoria de dependências e build conforme o contrato. CI remota da árvore exata depende da autorização de publicação correspondente. Integrações opt-in relevantes devem ser explicitadas; nenhum teste exige conta AWS de produção.
+Na implementação aprovada: primeiro helpers puros e testes negativos, depois AppTest, depois navegador com fixtures, depois checks canônicos do repositório. Ruff, mypy, pytest com cobertura mínima 96%, Bandit, auditoria de dependências, build e CI remota da árvore candidata foram executados com sucesso. Integrações opt-in relevantes devem ser explicitadas; nenhum teste exige conta AWS de produção.
 
 ### Avaliação de usabilidade proposta
 
@@ -464,6 +464,6 @@ Os problemas técnicos encontrados durante a validação desta rodada foram trat
 
 **Gates locais atuais:** suíte consolidada verde com cobertura mínima; browsers de acceptance geral, laboratório local, workspace e authoring verdes; checks estáticos/segurança/build/audits verdes. A evidência exata e atual fica nos task-runs em `.agents/runs/` e em `browser-artifacts/`.
 
-**Pendências que não devem ser simuladas:** a árvore ainda está dirty e não foi commitada/publicada, portanto não existe CI remota da árvore candidata exata; a avaliação com T01–T05 e N01–N05 ainda não foi realizada. Os AC01–AC18 estão verdes nos gates automatizados locais; isso não é apresentado como substituto para a avaliação humana planejada.
+**Pendência que não deve ser simulada:** a avaliação com T01–T05 e N01–N05 ainda não foi realizada. A árvore candidata está limpa, publicada em `codex/code-defined-tours`, e o SHA `f73eaee9acc5b12a1e4955305ddeb16b242c08f1` passou no workflow remoto `Quality` por `push` e `pull_request`. Os AC01–AC18 estão verdes nos gates automatizados locais e remotos; isso não é apresentado como substituto para a avaliação humana planejada.
 
 Impacto AWS da validação: nenhum acesso a conta AWS real; somente demo/fakes/Moto. Impacto de persistência: sem migração nova. Impacto de deploy: nenhum. Reversão: alterações continuam isoladas na branch técnica e não foram promovidas.
