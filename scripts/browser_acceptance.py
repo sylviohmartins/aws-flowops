@@ -48,10 +48,14 @@ def click(page: Page, label: str) -> None:
 def choose(page: Page, label: str, value: str) -> None:
     settled(page)
     control = page.get_by_role("combobox", name=label, exact=True)
+    if control.input_value() == value:
+        return
     control.click()
     control.fill(value)
-    page.get_by_role("option", name=value, exact=True).click()
+    expect(control).to_have_value(value)
+    control.press("Enter")
     settled(page)
+    expect(page.get_by_role("combobox", name=label, exact=True)).to_have_value(value)
 
 
 def navigate(page: Page, label: str) -> None:

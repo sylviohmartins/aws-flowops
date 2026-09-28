@@ -65,9 +65,10 @@ def choose(page: Page, label: str, value: str) -> None:
         return
     control.click()
     control.fill(value)
-    control.press("ArrowDown")
-    page.get_by_role("option", name=value, exact=True).click()
+    expect(control).to_have_value(value)
+    control.press("Enter")
     settled(page)
+    expect(page.get_by_role("combobox", name=label, exact=True)).to_have_value(value)
 
 
 def check_organization(page: Page, database: Path) -> None:
@@ -254,6 +255,7 @@ def journey(page: Page, url: str, database: Path) -> None:
     settled(page)
     page.get_by_role("button", name="Validar", exact=True).click()
     settled(page)
+    close_node_dialog(page)
     page.get_by_role("button", name="Salvar rascunho", exact=True).click()
     settled(page)
     expect(page.get_by_role("button", name="Desfazer organização", exact=True)).to_be_disabled()
@@ -314,6 +316,7 @@ def journey(page: Page, url: str, database: Path) -> None:
     expect(dialog).to_have_count(0)
     expect(query).to_be_visible()
     settled(page)
+    close_node_dialog(page)
     page.get_by_role("button", name="Salvar rascunho", exact=True).click()
     settled(page)
     publish = page.locator("button:enabled").filter(has_text="Publicar versão")
