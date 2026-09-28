@@ -420,7 +420,9 @@ def close_node_dialog(page: Page) -> None:
             page.wait_for_timeout(150)
     dialog = page.get_by_role("dialog")
     if dialog.count():
-        raise AssertionError("Node dialog remained open after repeated close attempts") from last_error
+        raise AssertionError(
+            "Node dialog remained open after repeated close attempts"
+        ) from last_error
 
 
 def journey(page: Page, url: str, database: Path) -> None:
