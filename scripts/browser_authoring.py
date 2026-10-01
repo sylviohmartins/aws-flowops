@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Locator, Page, expect
 
 from flowops.persistence.repository import Repository
@@ -77,10 +78,28 @@ def radio(page: Page, label: str) -> None:
 
 
 def expand(page: Page, label: str) -> None:
-    summary = page.locator("summary").filter(has_text=label)
-    keyboard_focus(page, summary)
-    page.keyboard.press("Enter")
-    settled(page)
+    last_error: Exception | None = None
+    for _ in range(6):
+        settled(page)
+        try:
+            summary = page.locator("summary").filter(has_text=label)
+            expect(summary).to_be_visible(timeout=5000)
+            details = summary.locator("xpath=ancestor::details[1]")
+            if details.count() and details.evaluate("node => node.open"):
+                return
+            keyboard_focus(page, summary)
+            page.keyboard.press("Enter")
+            page.wait_for_timeout(150)
+            settled(page)
+            summary = page.locator("summary").filter(has_text=label)
+            expect(summary).to_be_visible(timeout=5000)
+            details = summary.locator("xpath=ancestor::details[1]")
+            if details.count() and details.evaluate("node => node.open"):
+                return
+        except (PlaywrightError, AssertionError) as exc:
+            last_error = exc
+            page.wait_for_timeout(250)
+    raise AssertionError(f"Expander did not become available/open: {label}") from last_error
 
 
 def combo(page: Page, label: str, value: str) -> None:
