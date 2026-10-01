@@ -189,9 +189,12 @@ class AWSAction:
             "Statements",
             "TransactStatements",
             "PublishBatchRequestEntries",
+            "InstanceIds",
         ):
             if key in parameters:
                 return max(1, len(parameters[key]))
+        if self.spec.id == "ecs.update_service":
+            return max(1, int(parameters.get("desiredCount", 1)))
         return 1
 
     def preview(self, config: dict[str, Any], context: ActionContext) -> Any:
@@ -229,6 +232,7 @@ class AWSAction:
             or result.get("Failed")
             or result.get("Errors")
             or result.get("FunctionError")
+            or result.get("FailedEntryCount")
             or any(isinstance(r, dict) and r.get("Error") for r in result.get("Responses", []))
         ):
             error = ProviderError("PartialFailure", ambiguous=True)

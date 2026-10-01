@@ -26,6 +26,19 @@ READS = {
     "sns": "list_topics list_subscriptions list_subscriptions_by_topic get_topic_attributes",
     "lambda": "list_functions get_function get_function_configuration list_versions_by_function list_aliases get_alias list_layers list_layer_versions get_layer_version",
     "s3": "list_buckets list_objects_v2 get_object head_object head_bucket",
+    "ec2": "describe_instances describe_instance_status describe_images describe_volumes describe_snapshots describe_vpcs describe_subnets describe_security_groups describe_network_interfaces describe_addresses describe_availability_zones describe_regions",
+    "rds": "describe_db_instances describe_db_clusters describe_db_snapshots describe_db_cluster_snapshots describe_events",
+    "ecs": "list_clusters describe_clusters list_services describe_services list_tasks describe_tasks list_task_definitions describe_task_definition",
+    "eks": "list_clusters describe_cluster list_nodegroups describe_nodegroup list_addons describe_addon",
+    "ecr": "describe_repositories describe_images list_images describe_image_scan_findings",
+    "events": "list_event_buses describe_event_bus list_rules describe_rule list_targets_by_rule list_endpoints",
+    "stepfunctions": "list_state_machines describe_state_machine list_executions describe_execution get_execution_history",
+    "cloudwatch": "list_metrics get_metric_data get_metric_statistics describe_alarms describe_alarm_history",
+    "logs": "describe_log_groups describe_log_streams get_log_events filter_log_events",
+    "autoscaling": "describe_auto_scaling_groups describe_auto_scaling_instances describe_policies describe_scaling_activities",
+    "elasticache": "describe_cache_clusters describe_replication_groups describe_snapshots",
+    "elbv2": "describe_load_balancers describe_target_groups describe_target_health describe_listeners describe_rules",
+    "cloudformation": "list_stacks describe_stacks describe_stack_events describe_stack_resources list_stack_resources",
 }
 WRITES = {
     "dynamodb": "put_item update_item delete_item batch_write_item transact_write_items execute_statement batch_execute_statement execute_transaction",
@@ -33,6 +46,11 @@ WRITES = {
     "sns": "create_topic publish publish_batch subscribe unsubscribe set_topic_attributes",
     "lambda": "invoke update_function_configuration update_function_code publish_version create_alias update_alias delete_alias publish_layer_version delete_layer_version",
     "s3": "put_object delete_object delete_objects copy_object",
+    "ec2": "start_instances stop_instances reboot_instances",
+    "rds": "start_db_instance stop_db_instance start_db_cluster stop_db_cluster",
+    "events": "put_events",
+    "stepfunctions": "start_execution stop_execution",
+    "ecs": "update_service stop_task",
 }
 CRITICAL = {
     "sqs.purge_queue",
@@ -70,6 +88,28 @@ BLOCKED_SERVICES = {
 }
 
 IAM_OVERRIDES = {
+    **{
+        f"stepfunctions.{operation}": (f"states:{iam}",)
+        for operation, iam in (
+            ("list_state_machines", "ListStateMachines"),
+            ("describe_state_machine", "DescribeStateMachine"),
+            ("list_executions", "ListExecutions"),
+            ("describe_execution", "DescribeExecution"),
+            ("get_execution_history", "GetExecutionHistory"),
+            ("start_execution", "StartExecution"),
+            ("stop_execution", "StopExecution"),
+        )
+    },
+    **{
+        f"elbv2.{operation}": (f"elasticloadbalancing:{iam}",)
+        for operation, iam in (
+            ("describe_load_balancers", "DescribeLoadBalancers"),
+            ("describe_target_groups", "DescribeTargetGroups"),
+            ("describe_target_health", "DescribeTargetHealth"),
+            ("describe_listeners", "DescribeListeners"),
+            ("describe_rules", "DescribeRules"),
+        )
+    },
     "sns.publish_batch": ("sns:Publish",),
     "dynamodb.transact_get_items": ("dynamodb:GetItem",),
     "dynamodb.transact_write_items": (

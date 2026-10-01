@@ -23,7 +23,7 @@ dev = ["pytest>=8.3,<10", "pytest-cov>=6,<8", "ruff>=0.12,<1", "mypy>=1.16,<2", 
 include = ["flowops*"]
 
 [tool.setuptools.package-data]
-flowops = ["py.typed", "persistence/migrations/*.sql"]
+flowops = ["py.typed", "persistence/migrations/*.sql", "streamlit/operator_guide.md", "streamlit/ui_locale.js", "streamlit/workspace.css", "streamlit/flow_editor_assets/*"]
 
 [tool.ruff]
 target-version = "py312"

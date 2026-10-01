@@ -1,0 +1,150 @@
+{
+  "id": "resource-discovery-v2",
+  "phase": "REVIEW",
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "description": "Discover valid AWS resource identifiers from the current account/region using only curated read actions, bounded requests and literal dependencies",
+      "status": "DONE",
+      "evidence": [
+        "Declarative discovery covers 125/150 curated actions through 82 discovery rules; rules are validated against the curated catalog and botocore request models.",
+        "Discovery requests are bounded, dependency-aware and routed through read_action so aws.read permission, account/region context and read-only action enforcement remain centralized."
+      ]
+    },
+    {
+      "id": "REQ-002",
+      "description": "Inspect metadata for a selected AWS resource through explicit read-only actions before applying it to a runbook",
+      "status": "DONE",
+      "evidence": [
+        "26 declarative inspection rules expose selected-resource metadata through explicit user-triggered read-only actions.",
+        "Resource selection and application remain separate operations in the Streamlit picker."
+      ]
+    },
+    {
+      "id": "REQ-003",
+      "description": "Expose DynamoDB keys/indexes clearly without pretending DynamoDB has a relational column schema",
+      "status": "DONE",
+      "evidence": [
+        "DynamoDB authoring exposes table keys plus GSI/LSI metadata from DescribeTable.",
+        "Optional observed-field sampling uses an explicit read-only Scan with Limit=10 and no automatic pagination; UI states that sampled attributes are not table schema."
+      ]
+    },
+    {
+      "id": "REQ-004",
+      "description": "Preserve manual fallback, RBAC, account/region scope, no implicit AWS calls and no automatic mutation",
+      "status": "DONE",
+      "evidence": [
+        "Manual fallback remains available when discovery is unavailable or intentionally skipped.",
+        "Discovery and inspection are explicit user actions and use the existing governed read path; no real AWS mutation was introduced or executed."
+      ]
+    },
+    {
+      "id": "REQ-005",
+      "description": "Validate provider rules, Streamlit behavior, full Python quality suite and authoring browser journey without real AWS calls",
+      "status": "DONE",
+      "evidence": [
+        "Final consolidated local gate: 358 passed, 197 subtests passed, 0 skipped, 0 failed, coverage 96.44%, exit code 0.",
+        "Focused discovery/resource-picker/DynamoDB tests passed; all four browser gates in the local quality workflow passed.",
+        "Ruff, format, mypy (70 source files), Bandit, React tests/build, npm audit and isolated pip-audit are green."
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "declarative-discovery",
+      "wave": 1,
+      "status": "DONE",
+      "requirementIds": [
+        "REQ-001",
+        "REQ-004"
+      ],
+      "files": [
+        "flowops/providers/aws/resources.py",
+        "tests/test_resources.py"
+      ]
+    },
+    {
+      "id": "resource-inspection-ui",
+      "wave": 2,
+      "status": "DONE",
+      "requirementIds": [
+        "REQ-002",
+        "REQ-003",
+        "REQ-004"
+      ],
+      "files": [
+        "flowops/streamlit/resource_picker.py",
+        "flowops/streamlit/goal_wizard.py",
+        "tests/test_resource_picker.py",
+        "tests/test_authoring_presenters.py"
+      ]
+    },
+    {
+      "id": "validate",
+      "wave": 3,
+      "status": "DONE",
+      "requirementIds": [
+        "REQ-005"
+      ],
+      "files": [
+        "tests/test_postgres.py",
+        "tests/test_local_aws.py",
+        "scripts/setup.py",
+        ".github/workflows/quality.yml"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "name": "pytest-consolidated",
+      "status": "PASS",
+      "evidence": "358 passed, 197 subtests passed, coverage 96.44%, exit code 0"
+    },
+    {
+      "name": "postgres-rerun",
+      "status": "PASS",
+      "evidence": "tests/test_postgres.py passed twice consecutively against the same persistent PostgreSQL volume"
+    },
+    {
+      "name": "local-aws-rerun",
+      "status": "PASS",
+      "evidence": "LocalBusinessJourneyTests passed twice consecutively after test-only Moto sandbox reset"
+    },
+    {
+      "name": "ruff-format-mypy-bandit",
+      "status": "PASS",
+      "evidence": "Ruff clean; 255 files formatted; mypy clean on 70 source files; Bandit reported 0 issues"
+    },
+    {
+      "name": "dependency-audits",
+      "status": "PASS",
+      "evidence": "npm audit: 0 vulnerabilities; pip-audit in isolated Python 3.12 environment with pip>=26.2.1: no known vulnerabilities"
+    },
+    {
+      "name": "package-build",
+      "status": "PASS",
+      "evidence": "Standard python -m build succeeded and produced aws_flowops-0.1.0.tar.gz plus aws_flowops-0.1.0-py3-none-any.whl; a stale ACL-blocked historical dist was preserved under ignored .build-check before recreating dist cleanly."
+    },
+    {
+      "name": "authoring-browser",
+      "status": "PASS",
+      "evidence": "Workspace browser authoring-completion acceptance passed with local Playwright browser bundle"
+    }
+  ],
+  "failures": [],
+  "checkpoint": {
+    "branch": "codex/code-defined-tours",
+    "nextAction": "Keep the validated dirty tree unpromoted. If publication is authorized, create a controlled candidate commit, run exact-tree CI, review current main again and only then make a promotion decision.",
+    "decisions": [
+      "No real AWS account calls or mutations were used for validation; botocore models, demo fakes and Moto/Docker provide deterministic coverage.",
+      "Discovery and inspection stay explicit read-only user actions; applying a discovered value remains separate.",
+      "DynamoDB observed fields are sampled metadata, never advertised as relational schema.",
+      "Persistent PostgreSQL and Moto integration tests were made rerunnable without weakening production idempotency or seed-preservation semantics.",
+      "Do not promote or deploy this dirty tree without explicit authorization."
+    ],
+    "risks": [
+      "Exact candidate-tree GitHub CI still requires a published commit/branch and has not been run for this dirty working tree.",
+      "Human usability study belongs to the broader visual-authoring completion run and remains outside Resource Discovery v2."
+    ]
+  }
+}

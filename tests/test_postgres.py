@@ -40,7 +40,7 @@ def test_postgres_repository_and_dry_run_engine_round_trip() -> None:
         actor,
         AWSContext(),
         {"payment_id": "12345", "environment": "dev"},
-        token="postgres-e2e",
+        token=f"postgres-e2e:{book.id}",
         dry_run=True,
         reason="postgres integration test",
     )
@@ -70,7 +70,7 @@ def test_postgres_live_execution_acquires_and_releases_scope_lock() -> None:
         actor,
         AWSContext(),
         {},
-        token="postgres-live-lock",
+        token=f"postgres-live-lock:{book.id}",
         dry_run=False,
         reason="exercise production-style resource lock semantics",
     )

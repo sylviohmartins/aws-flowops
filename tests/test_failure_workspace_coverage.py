@@ -41,12 +41,12 @@ class FakeStreamlit:
         format_func: Any,
         key: str,
     ) -> str:
-        assert label == "Failure target"
+        assert label == "Destino da falha"
         assert format_func(options[index])
         return self.selected or options[index]
 
     def button(self, label: str, *, disabled: bool, key: str) -> bool:
-        assert label == "Apply failure route"
+        assert label == "Aplicar caminho de falha"
         return self.click and not disabled
 
     def rerun(self) -> None:
@@ -109,7 +109,7 @@ def test_failure_editor_ignores_non_fail_branch_and_reports_missing_target(
     fake.session_state["flowops:selected_runbook"] = no_target.id
     fake.session_state[f"flowops:node:{no_target.id}"] = "worker"
     ui._editor()
-    assert fake.errors[-1].startswith("FAIL_BRANCH needs another node")
+    assert fake.errors[-1].startswith("O tratamento FAIL_BRANCH exige outra etapa")
 
 
 def test_failure_editor_applies_replaces_and_respects_edit_permission(
@@ -140,7 +140,7 @@ def test_failure_editor_applies_replaces_and_respects_edit_permission(
 
     admin = FlowOpsGovernedUI(Identity(id="operator", roles=["ADMIN"]), None, app)
     admin._editor()
-    assert fake.subheaders[-1] == "Failure route"
+    assert fake.subheaders[-1] == "Caminho de falha"
     assert "compensation" in fake.captions[-1]
     assert fake.rerun_called is True
     working = admin._working_draft(book, revision)

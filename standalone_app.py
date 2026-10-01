@@ -8,6 +8,6 @@ from flowops.streamlit import FlowOpsPage
 
 st.set_page_config(page_title="AWS FlowOps Studio", page_icon="◈", layout="wide")
 identity_provider = StaticIdentityProvider(
-    Identity(id="demo-author", display_name="Operador demo", roles=["ADMIN"])
+    Identity(id="demo-author", display_name="Operador de demonstração", roles=["ADMIN"])
 )
 FlowOpsPage(identity_provider.current(), AWSContext()).render()

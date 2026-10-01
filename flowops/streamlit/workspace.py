@@ -14,12 +14,18 @@ from typing import Any
 from flowops.core.mapping import apply_mapping, defaults_from_schema, flatten_schema, source_fields
 from flowops.core.policies import require
 from flowops.domain.errors import FlowOpsError, WorkflowValidationError
-from flowops.domain.models import Status, new_id
+from flowops.domain.models import Node, Runbook, Status, new_id
 from flowops.observability import metric_snapshot
-from flowops.streamlit.canvas import workflow_canvas
 from flowops.streamlit.lambda_review import render_lambda_review
+from flowops.streamlit.live_execution import render_live_execution
+from flowops.streamlit.localization import (
+    display,
+    field_help,
+    presentation_rows,
+    render_summary_table,
+)
+from flowops.streamlit.node_editor import render_logic_inputs
 from flowops.streamlit.resource_picker import render_resource_picker
-from flowops.streamlit.results import render_results
 from flowops.streamlit.typed_inputs import render_typed_inputs
 from flowops.streamlit.ui import FlowOpsUI
 
@@ -69,42 +75,48 @@ class FlowOpsWorkspaceUI(FlowOpsUI):
     def _dashboard(self) -> None:
         import streamlit as st
 
+        st.header("Visão geral")
         executions = self._visible_executions(500)
         runbooks = self._visible_runbooks()
         total = len(executions)
         successes = sum(execution.status == Status.SUCCESS for execution in executions)
         failures = sum(execution.status == Status.FAILED for execution in executions)
         columns = st.columns(5)
-        columns[0].metric("Runbooks", len(runbooks))
-        columns[1].metric("Executions", total)
-        columns[2].metric("Success", successes)
-        columns[3].metric("Failures", failures)
-        columns[4].metric("Success rate", f"{(successes / total * 100):.1f}%" if total else "—")
+        columns[0].metric("Procedimentos", len(runbooks))
+        columns[1].metric("Execuções", total)
+        columns[2].metric("Sucesso", successes)
+        columns[3].metric("Falhas", failures)
+        columns[4].metric(
+            "Taxa de sucesso",
+            f"{(successes / total * 100):.1f}%".replace(".", ",") if total else "—",
+        )
 
         recent = executions[:100]
         node_details = {
             execution.id: self.runtime.engine.store.nodes(execution.id) for execution in recent
         }
         metrics = metric_snapshot(recent, node_details)
-        with st.expander("Operational metrics", expanded=False):
+        with st.expander("Métricas operacionais", expanded=False):
             st.json(metrics, expanded=True)
             st.caption(
-                "Canonical metric names are derived from durable state and can be exported by the host."
+                "As métricas são calculadas a partir do estado persistido. Seus identificadores técnicos podem ser exportados pela aplicação hospedeira."
             )
 
-        st.subheader("Recent executions")
-        st.dataframe(
-            [
-                {
-                    "id": execution.id,
-                    "runbook": execution.snapshot.name,
-                    "version": execution.runbook_version,
-                    "environment": execution.aws_context.environment,
-                    "status": execution.status.value,
-                    "started": execution.started_at or execution.created_at,
-                }
-                for execution in executions[:10]
-            ],
+        st.subheader("Execuções recentes")
+        render_summary_table(
+            presentation_rows(
+                [
+                    {
+                        "id": execution.id,
+                        "runbook": execution.snapshot.name,
+                        "version": execution.runbook_version,
+                        "environment": execution.aws_context.environment,
+                        "status": execution.status.value,
+                        "started": execution.started_at or execution.created_at,
+                    }
+                    for execution in executions[:10]
+                ]
+            ),
             width="stretch",
             hide_index=True,
         )
@@ -115,21 +127,30 @@ class FlowOpsWorkspaceUI(FlowOpsUI):
         )
         environments = Counter(execution.aws_context.environment for execution in executions)
         left, middle, right = st.columns(3)
-        left.markdown("**Most used runbooks**")
-        left.dataframe(
-            [{"runbook": name, "executions": count} for name, count in usage.most_common(10)],
+        left.markdown("**Procedimentos mais utilizados**")
+        render_summary_table(
+            presentation_rows(
+                [{"runbook": name, "executions": count} for name, count in usage.most_common(10)]
+            ),
+            container=left,
             width="stretch",
             hide_index=True,
         )
-        middle.markdown("**Runbooks with failures**")
-        middle.dataframe(
-            [{"runbook": name, "failures": count} for name, count in failed.most_common(10)],
+        middle.markdown("**Procedimentos com falhas**")
+        render_summary_table(
+            presentation_rows(
+                [{"runbook": name, "failures": count} for name, count in failed.most_common(10)]
+            ),
+            container=middle,
             width="stretch",
             hide_index=True,
         )
-        right.markdown("**Executions by environment**")
-        right.dataframe(
-            [{"environment": name, "executions": count} for name, count in environments.items()],
+        right.markdown("**Execuções por ambiente**")
+        render_summary_table(
+            presentation_rows(
+                [{"environment": name, "executions": count} for name, count in environments.items()]
+            ),
+            container=right,
             width="stretch",
             hide_index=True,
         )
@@ -141,9 +162,14 @@ class FlowOpsWorkspaceUI(FlowOpsUI):
         selected_id = st.session_state.get("flowops:selected_runbook")
         if not isinstance(selected_id, str):
             return
+        if st.session_state.get(f"flowops:editor-view:{selected_id}") == "Assistente":
+            return
         try:
             persisted, revision = self.repository.get_draft(selected_id)
         except FlowOpsError:
+            return
+        cached = st.session_state.get(self._working_key(persisted))
+        if isinstance(cached, dict) and cached.get("revision") != revision:
             return
         working = self._working_draft(persisted, revision)
         selected_node_id = st.session_state.get(f"flowops:node:{persisted.id}")
@@ -151,79 +177,103 @@ class FlowOpsWorkspaceUI(FlowOpsUI):
         if node is None or node.action.startswith("core."):
             return
 
-        render_lambda_review(self, working, node, revision)
-        render_resource_picker(self, working, node, revision)
+        if st.session_state.get(f"flowops:node-dialog:{persisted.id}"):
+            return
+        with st.expander("Ferramentas avançadas da etapa", expanded=False):
+            self._node_tools(working, node, revision)
+
+    def _node_tools(self, working: Runbook, node: Node, revision: int) -> None:
+        import streamlit as st
+
+        if node.action.startswith("core."):
+            render_logic_inputs(self, working, node, revision)
+            return
+        persisted = working
         render_typed_inputs(self, working, node, revision)
+        with st.expander("Buscar recursos e montar consulta DynamoDB", expanded=False):
+            render_resource_picker(self, working, node, revision)
+        render_lambda_review(self, working, node, revision)
 
         metadata = self.runtime.registry.get(node.action).metadata
         targets = [field for field in flatten_schema(metadata.input_schema) if field.path != "$"]
         sources = source_fields(working, node.id, self.runtime.registry)
-        st.subheader("Schema & Data Mapper")
+        st.subheader("Estrutura e mapeamento de dados")
         st.caption(
-            "Source selection is restricted to parameters, execution context and ancestor outputs. "
-            "Mappings use the same safe expression DSL as the engine."
+            "A origem deve ser um parâmetro, o contexto da execução ou a saída de uma etapa anterior. Os mapeamentos usam a mesma linguagem segura de expressões do motor de execução."
         )
-        with st.expander("Input schema browser", expanded=True):
-            st.dataframe(
-                [
-                    {
-                        "field": field.path,
-                        "type": field.type,
-                        "required": field.required,
-                        "default": field.default,
-                        "enum": ", ".join(map(str, field.enum)),
-                        "documentation": field.description,
-                    }
-                    for field in targets
-                ],
+        with st.expander("Estrutura dos campos de entrada", expanded=True):
+            render_summary_table(
+                presentation_rows(
+                    [
+                        {
+                            "field": field.path,
+                            "type": field.type,
+                            "required": field.required,
+                            "default": field.default,
+                            "enum": ", ".join(map(str, field.enum)),
+                            "documentation": field_help(field.path, {"type": field.type}),
+                        }
+                        for field in targets
+                    ]
+                ),
                 width="stretch",
                 hide_index=True,
             )
         if not targets:
-            st.info("This action does not expose mappable input fields in its service model.")
+            st.info("Esta ação não disponibiliza campos de entrada mapeáveis no modelo do serviço.")
             return
         if not sources:
-            st.info("No parameter or ancestor output is available to map yet.")
+            st.info(
+                "Ainda não há parâmetros ou saídas de etapas anteriores disponíveis para mapear."
+            )
             return
         target_path = st.selectbox(
-            "Target field",
+            "Campo de destino",
             [field.path for field in targets],
             key=f"flowops:mapper-target:{persisted.id}:{node.id}",
         )
         source_path = st.selectbox(
-            "Source",
+            "Origem",
             [field.path for field in sources],
             format_func=lambda path: next(
-                f"{field.path} · {field.type}" for field in sources if field.path == path
+                f"{field.path} · {display(field.type)}" for field in sources if field.path == path
             ),
             key=f"flowops:mapper-source:{persisted.id}:{node.id}",
         )
         target = next(field for field in targets if field.path == target_path)
         source = next(field for field in sources if field.path == source_path)
         compatible = _compatible(source.type, target.type)
-        if compatible:
-            st.success(f"Type compatible: {source.type} → {target.type}")
+        if "any" in {source.type, target.type}:
+            st.info(
+                "Tipo ainda desconhecido; a compatibilidade será conferida quando houver dados."
+            )
+        elif compatible:
+            st.success(f"Tipos compatíveis: {display(source.type)} → {display(target.type)}")
         else:
-            st.error(f"Type mismatch: {source.type} cannot map to {target.type}.")
+            st.error(
+                f"Tipos incompatíveis: {display(source.type)} não pode ser mapeado para {display(target.type)}."
+            )
         preview = apply_mapping(node.config, target_path, source_path)
-        st.markdown("**Mapping preview**")
+        st.markdown("**Prévia do mapeamento**")
         st.json(preview, expanded=False)
         editable = self._granted("runbook.edit", working)
         controls = st.columns(2)
         if controls[0].button(
-            "Apply mapping",
+            "Aplicar mapeamento",
             disabled=not editable or not compatible,
             key=f"flowops:mapper-apply:{persisted.id}:{node.id}",
         ):
+            require(self.user, "runbook.edit", working)
             node.config = preview
             self._store_working(working, revision)
             st.rerun()
         defaults = defaults_from_schema(metadata.input_schema)
         if controls[1].button(
-            "Apply schema defaults",
+            "Aplicar valores padrão da estrutura",
             disabled=not editable or not defaults,
             key=f"flowops:mapper-defaults:{persisted.id}:{node.id}",
         ):
+            require(self.user, "runbook.edit", working)
             node.config = defaults | node.config
             self._store_working(working, revision)
             st.rerun()
@@ -231,43 +281,48 @@ class FlowOpsWorkspaceUI(FlowOpsUI):
     def _execute(self) -> None:
         import streamlit as st
 
-        st.header("Execute Runbook")
-        draft = self._select_runbook(label="Execution runbook", published_only=True)
+        st.header("Executar procedimento")
+        draft = self._select_runbook(label="Procedimento a executar", published_only=True)
         if draft is None:
             return
         versions = self.repository.versions(draft.id)
-        version = st.selectbox("Version", versions, key=f"flowops:execute-version:{draft.id}")
+        version = st.selectbox("Versão", versions, key=f"flowops:execute-version:{draft.id}")
         book = self.repository.version(draft.id, version)
         require(self.user, f"runbook.execute.{self.aws.environment}", book)
         st.caption(
-            "FlowOps simulation prevents mutation calls and can simulate state transitions. "
-            "It is separate from any AWS service-native DryRun option."
+            "A simulação do FlowOps impede chamadas de alteração e pode simular mudanças de estado. Ela é independente da opção DryRun nativa dos serviços AWS."
         )
         if self.correlation_context:
             st.caption(
-                "Host correlation: "
+                "Correlação da aplicação hospedeira: "
                 + ", ".join(f"{key}={value}" for key, value in self.correlation_context.items())
             )
         if self.aws.environment == "production":
             st.warning(
-                f"PRODUCTION target: account {self.aws.account_id}, region {self.aws.region}. "
-                "Live execution requires an explicit typed confirmation."
+                f"Destino de PRODUÇÃO: conta {self.aws.account_id}, região {self.aws.region}. "
+                "A execução efetiva exige confirmação explícita digitada."
             )
         with st.form(f"flowops:execute-form:{book.id}:{version}"):
             values = self._parameter_inputs(book)
-            dry_run = st.checkbox("FlowOps simulation", value=True)
-            reason = st.text_input("Reason / change reference")
+            dry_run = st.checkbox("Simulação do FlowOps", value=True)
+            reason = st.text_input("Motivo / referência da mudança")
             production_word = ""
             production_account = ""
             if self.aws.environment == "production":
-                production_word = st.text_input("Type PRODUCTION for a live production run")
-                production_account = st.text_input("Type the 12-digit target AWS account")
-            submitted = st.form_submit_button("Submit execution", type="primary")
+                production_word = st.text_input(
+                    "Digite PRODUCTION para executar efetivamente em produção"
+                )
+                production_account = st.text_input("Digite os 12 dígitos da conta AWS de destino")
+            submitted = st.form_submit_button("Enviar execução", type="primary")
+        if any(node.action == "core.approval" for node in book.nodes):
+            st.info(
+                "Com a simulação do FlowOps marcada, a aprovação é simulada, sem pendência. Desmarcada, a execução pausa em Aprovações. No modo de demonstração, isso afeta somente dados fictícios locais."
+            )
         if submitted:
             if self.aws.environment == "production" and not dry_run:
                 if production_word != "PRODUCTION" or production_account != self.aws.account_id:
                     raise WorkflowValidationError(
-                        "Live production execution requires PRODUCTION and the exact target account ID."
+                        "A execução efetiva em produção exige PRODUCTION e o ID exato da conta de destino."
                     )
             parameters = self._coerce_parameters(values)
             execution = self.runtime.engine.submit(
@@ -282,41 +337,63 @@ class FlowOpsWorkspaceUI(FlowOpsUI):
             )
             self.runtime.worker.enqueue(execution.id)
             st.session_state["flowops:last_execution"] = execution.id
-            st.success(f"Execution {execution.id} submitted asynchronously.")
+            st.success(f"Execução {execution.id} enviada para processamento em segundo plano.")
         last = st.session_state.get("flowops:last_execution")
         if isinstance(last, str):
             try:
                 execution = self.runtime.engine.store.get(last)
-                st.caption(f"Latest submitted status: {execution.status.value}")
+                st.caption(f"Estado da última execução enviada: {display(execution.status.value)}")
+                render_live_execution(self, execution.id)
             except FlowOpsError:
                 pass
 
     def _executions(self) -> None:
         import streamlit as st
 
-        st.header("Execution History")
+        st.header("Histórico de execuções")
         executions = self._visible_executions(2000)
         users = sorted({execution.actor.id for execution in executions})
         environments = sorted({execution.aws_context.environment for execution in executions})
         runbooks = sorted({execution.snapshot.name for execution in executions})
         accounts = sorted({execution.aws_context.account_id for execution in executions})
-        row1 = st.columns(4)
-        status_filter = row1[0].selectbox(
-            "Status", ["ALL"] + [status.value for status in Status], key="flowops:history-status"
+        # One responsive grid keeps subsequent rows on the same alignment tracks.
+        filters = st.columns(7)
+        status_filter = filters[0].selectbox(
+            "Estado",
+            ["ALL"] + [status.value for status in Status],
+            format_func=display,
+            key="flowops:history-status",
         )
-        user_filter = row1[1].selectbox("User", ["ALL"] + users, key="flowops:history-user")
-        environment_filter = row1[2].selectbox(
-            "Environment", ["ALL"] + environments, key="flowops:history-environment"
+        user_filter = filters[1].selectbox(
+            "Usuário",
+            ["ALL"] + users,
+            format_func=lambda value: "Todos" if value == "ALL" else value,
+            key="flowops:history-user",
         )
-        account_filter = row1[3].selectbox(
-            "AWS account", ["ALL"] + accounts, key="flowops:history-account"
+        environment_filter = filters[2].selectbox(
+            "Ambiente",
+            ["ALL"] + environments,
+            format_func=display,
+            key="flowops:history-environment",
         )
-        row2 = st.columns(3)
-        runbook_filter = row2[0].selectbox(
-            "Runbook", ["ALL"] + runbooks, key="flowops:history-runbook"
+        account_filter = filters[3].selectbox(
+            "Conta AWS",
+            ["ALL"] + accounts,
+            format_func=lambda value: "Todas" if value == "ALL" else value,
+            key="flowops:history-account",
         )
-        date_from = row2[1].date_input("From", value=None, key="flowops:history-from")
-        date_to = row2[2].date_input("To", value=None, key="flowops:history-to")
+        runbook_filter = filters[4].selectbox(
+            "Procedimento",
+            ["ALL"] + runbooks,
+            format_func=lambda value: "Todos" if value == "ALL" else value,
+            key="flowops:history-runbook",
+        )
+        date_from = filters[5].date_input(
+            "De", value=None, format="DD/MM/YYYY", key="flowops:history-from"
+        )
+        date_to = filters[6].date_input(
+            "Até", value=None, format="DD/MM/YYYY", key="flowops:history-to"
+        )
 
         def keep(execution: Any) -> bool:
             if status_filter != "ALL" and execution.status.value != status_filter:
@@ -355,11 +432,11 @@ class FlowOpsWorkspaceUI(FlowOpsUI):
             }
             for execution in executions
         ]
-        st.dataframe(rows, width="stretch", hide_index=True)
+        render_summary_table(presentation_rows(rows), width="stretch", hide_index=True)
         if not executions:
             return
         selected_id = st.selectbox(
-            "Execution detail",
+            "Detalhes da execução",
             [execution.id for execution in executions],
             key="flowops:execution-detail",
         )
@@ -382,14 +459,9 @@ class FlowOpsWorkspaceUI(FlowOpsUI):
             expanded=False,
         )
         node_details = self.runtime.engine.store.nodes(execution.id)
-        visual = execution.snapshot.model_copy(deep=True)
-        for node in visual.nodes:
-            status = str(node_details.get(node.id, {}).get("status", Status.PENDING.value))
-            node.label = f"{STATUS_SYMBOL.get(status, '○')} {node.label or node.action}"[:120]
-        st.subheader("Visual execution")
-        workflow_canvas(visual, key=f"flowops-execution-{execution.id}", readonly=True)
+        render_live_execution(self, execution.id)
 
-        st.subheader("Node executions")
+        st.subheader("Execuções das etapas")
         node_by_id = {node.id: node for node in execution.snapshot.nodes}
         node_rows: Any = [
             {
@@ -404,13 +476,12 @@ class FlowOpsWorkspaceUI(FlowOpsUI):
             }
             for node_id, detail in node_details.items()
         ]
-        st.dataframe(node_rows, width="stretch", hide_index=True)
-        with st.expander("Raw node details", expanded=False):
+        render_summary_table(presentation_rows(node_rows), width="stretch", hide_index=True)
+        with st.expander("Detalhes técnicos das etapas", expanded=False):
             st.json(node_details, expanded=False)
-        render_results(execution, node_details)
         columns = st.columns(2)
         if execution.status in {Status.PENDING, Status.RUNNING, Status.WAITING_APPROVAL}:
-            if columns[0].button("Cancel", key=f"flowops:cancel:{execution.id}"):
+            if columns[0].button("Cancelar", key=f"flowops:cancel:{execution.id}"):
                 self.runtime.engine.cancel(execution.id, self.user)
                 st.rerun()
         if execution.status in {Status.SUCCESS, Status.FAILED, Status.CANCELLED}:
@@ -418,23 +489,24 @@ class FlowOpsWorkspaceUI(FlowOpsUI):
             production_account = ""
             if execution.aws_context.environment == "production" and not execution.dry_run:
                 st.warning(
-                    f"Live production replay: account {execution.aws_context.account_id}, region {execution.aws_context.region}."
+                    f"Nova execução efetiva em produção: conta {execution.aws_context.account_id}, região {execution.aws_context.region}."
                 )
                 production_word = st.text_input(
-                    "Type PRODUCTION to run again", key=f"flowops:rerun-word:{execution.id}"
+                    "Digite PRODUCTION para executar novamente",
+                    key=f"flowops:rerun-word:{execution.id}",
                 )
                 production_account = st.text_input(
-                    "Type the target AWS account to run again",
+                    "Digite a conta AWS de destino para executar novamente",
                     key=f"flowops:rerun-account:{execution.id}",
                 )
-            if columns[1].button("Run again", key=f"flowops:rerun:{execution.id}"):
+            if columns[1].button("Executar novamente", key=f"flowops:rerun:{execution.id}"):
                 if execution.aws_context.environment == "production" and not execution.dry_run:
                     if (
                         production_word != "PRODUCTION"
                         or production_account != execution.aws_context.account_id
                     ):
                         raise WorkflowValidationError(
-                            "Live production replay requires PRODUCTION and the exact target account ID."
+                            "A nova execução efetiva em produção exige PRODUCTION e o ID exato da conta de destino."
                         )
                 require(
                     self.user,

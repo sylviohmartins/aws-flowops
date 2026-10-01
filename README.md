@@ -211,6 +211,11 @@ não contém credenciais e não substitui o histórico durável do Repository.
 
 ## Templates e demo
 
+O [guia passo a passo](flowops/streamlit/operator_guide.md) também está disponível no menu
+**Guia passo a passo**. O template **DynamoDB Query to Lambda** ensina consulta, transformação,
+aprovação e envio de payload. Clique nas caixas para editar e acompanhe estados/conexões ao vivo.
+Resultados e diagnósticos por nó podem ser exportados no histórico.
+
 O template **Fix Stuck Payment** é o cenário E2E de referência: valida ambiente, lê o pagamento,
 verifica `PROCESSING`, passa por aprovação, atualiza condicionalmente, emite evento SQS, espera,
 relê e valida `PROCESSED`. Em simulação, o backend demo mantém estado isolado por execução e
@@ -278,7 +283,8 @@ python scripts/browser_acceptance.py
 Para executar também o teste PostgreSQL localmente:
 
 ```bash
-export FLOWOPS_TEST_POSTGRES_DSN='postgresql://flowops:flowops@localhost:5432/flowops'
+docker compose -f compose.local.yml up -d postgres
+export FLOWOPS_TEST_POSTGRES_DSN='postgresql://flowops_local:flowops_local@127.0.0.1:55432/flowops_local'
 pytest tests/test_postgres.py tests/test_pending_queue.py -v
 ```
 
@@ -289,6 +295,8 @@ comportamento específicos, independentemente do percentual agregado.
 
 ## Documentação
 
+- [Design e alinhamento da interface](docs/INTERFACE_DESIGN.md) — grade, espaçamento e validação responsiva;
+- [Interface em pt-BR](docs/LOCALIZATION.md) — escopo da tradução, identificadores preservados e validação;
 - `docs/SETUP.md` — setup automático, Docker/LocalStack e conexão aos recursos AWS;
 - `docs/ARCHITECTURE.md` — camadas, runtime e fluxo de execução;
 - `docs/AGENT_ENGINEERING.md` — instruções persistentes, skills, agentes, prompts, validações e fluxo de promoção para trabalho assistido por IA;
@@ -310,3 +318,6 @@ FlowOps não é um gerenciador de segredos, não cria identidade corporativa, n�
 não tenta suportar qualquer operação AWS de forma irrestrita. A superfície genérica é
 allowlistada e fail-closed. Operações reais devem ser executadas com least privilege e com um
 banco PostgreSQL compartilhado quando houver mais de uma instância do aplicativo.
+- [Plano de autoria visual](docs/UX_VISUAL_AUTHORING_PLAN.md) — ondas, critérios e estado da implementação;
+- [Componente React do editor](frontend/flow-editor/README.md) — build, bridge e limites;
+- [Avaliação com participantes](docs/UX_AUTHORING_USER_STUDY.md) — roteiro e coleta de resultados reais;

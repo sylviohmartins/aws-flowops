@@ -60,7 +60,28 @@ jobs:
       - name: Agent engineering policy
         run: python scripts/agents/validate.py
       - name: Install
-        run: python -m pip install -e '.[dev,postgres]'
+        run: |
+          python -m pip install 'pip>=26.2.1'
+          python -m pip install -e '.[dev,postgres]'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/flow-editor/package-lock.json
+      - name: Install editor dependencies
+        working-directory: frontend/flow-editor
+        run: npm ci --ignore-scripts
+      - name: Editor tests
+        working-directory: frontend/flow-editor
+        run: npm test
+      - name: Editor build and reproducibility
+        working-directory: frontend/flow-editor
+        run: |
+          npm run build
+          git diff --exit-code -- ../../flowops/streamlit/flow_editor_assets
+      - name: Editor dependency audit
+        working-directory: frontend/flow-editor
+        run: npm audit
       - name: Local AWS lab (real Docker Lambda)
         run: python scripts/setup.py --local --dev --install-only
       - name: Format diagnostics
@@ -93,6 +114,12 @@ jobs:
       - name: Local lab browser acceptance
         if: always()
         run: python -m scripts.browser_local_lab
+      - name: Workspace usability browser acceptance
+        if: always()
+        run: python -m scripts.browser_workspace
+      - name: Visual authoring keyboard and React acceptance
+        if: always()
+        run: python -m scripts.browser_workspace --authoring-completion
       - name: Browser evidence
         if: always()
         uses: actions/upload-artifact@v4

@@ -2,6 +2,7 @@
 
 import copy
 import json
+import re
 import threading
 from typing import Any
 
@@ -160,13 +161,25 @@ class DemoBackend:
                     "Table": {
                         "TableName": "payments",
                         "KeySchema": [{"AttributeName": "paymentId", "KeyType": "HASH"}],
+                        "AttributeDefinitions": [
+                            {"AttributeName": "paymentId", "AttributeType": "S"}
+                        ],
                         "TableStatus": "ACTIVE",
                     }
                 }
             if key in {"dynamodb.query", "dynamodb.scan"}:
                 items = list(state["payments"].values())
                 if key == "dynamodb.query":
-                    target = p.get("ExpressionAttributeValues", {}).get(":paymentId", {}).get("S")
+                    match = re.fullmatch(
+                        r"(#?\w+)\s*=\s*(:\w+)", p.get("KeyConditionExpression", "")
+                    )
+                    if (
+                        not match
+                        or p.get("ExpressionAttributeNames", {}).get(match[1], match[1])
+                        != "paymentId"
+                    ):
+                        raise ProviderError("Demo query supports paymentId equality only")
+                    target = p.get("ExpressionAttributeValues", {}).get(match[2], {}).get("S")
                     items = [item for item in items if item["paymentId"]["S"] == target]
                 return {
                     "Items": items[: min(p.get("Limit", limits.max_items), limits.max_items)],

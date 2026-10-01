@@ -11,16 +11,16 @@ def render_lambda_review(ui: FlowOpsUI, book: Runbook, node: Node, revision: int
         return
     import streamlit as st
 
-    st.subheader("Lambda change review")
+    st.subheader("Revisão de alterações da Lambda")
     st.caption(
-        "Review configuration, package, runtime, versions, aliases, layers and artifact metadata. ZIP and container artifacts are not assumed to have inline editable source. Environment values and download URLs are hidden."
+        "Revise a configuração, o pacote, o ambiente de execução, as versões, os aliases, as camadas e os metadados do artefato. Artefatos ZIP e contêineres não necessariamente possuem código-fonte editável nesta tela. Valores de variáveis de ambiente e URLs de download ficam ocultos."
     )
     key = f"flowops:lambda-review:{book.id}:{node.id}"
     fingerprint = digest(
         {"action": node.action, "config": node.config, "context": ui.aws.model_dump()}
     )
     if st.button(
-        "Load CURRENT and compare PROPOSED",
+        "Carregar estado ATUAL e comparar com o PROPOSTO",
         disabled=not ui._granted("aws.read", book),
         key=f"{key}:load",
     ):
@@ -32,15 +32,15 @@ def render_lambda_review(ui: FlowOpsUI, book: Runbook, node: Node, revision: int
     preview = cached["preview"]
     for column, label, data in zip(
         st.columns(2),
-        ("CURRENT", "PROPOSED"),
+        ("ATUAL", "PROPOSTO"),
         (preview["current"], preview["proposed"]),
         strict=True,
     ):
         column.markdown(f"**{label}**")
         column.json(data, expanded=False)
-    st.code(preview["diff"] or "No changes.", language="diff")
+    st.code(preview["diff"] or "Nenhuma alteração.", language="diff")
     if preview["revision_id"] and st.button(
-        "Bind reviewed RevisionId",
+        "Aplicar RevisionId revisado",
         disabled=not ui._granted("runbook.edit", book),
         key=f"{key}:bind",
     ):

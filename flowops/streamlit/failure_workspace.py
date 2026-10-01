@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from flowops.domain.errors import FlowOpsError
-from flowops.domain.models import Edge
+from flowops.domain.models import Edge, Node, Runbook
 from flowops.streamlit.workspace import FlowOpsWorkspaceUI
 
 
@@ -26,11 +26,23 @@ class FlowOpsGovernedUI(FlowOpsWorkspaceUI):
         node = next((entry for entry in working.nodes if entry.id == selected_node_id), None)
         if node is None or node.failure_policy != "FAIL_BRANCH":
             return
+        if not st.session_state.get(f"flowops:node-dialog:{persisted.id}"):
+            self._failure_tools(working, node, revision)
+
+    def _node_tools(self, working: Runbook, node: Node, revision: int) -> None:
+        super()._node_tools(working, node, revision)
+        if node.failure_policy == "FAIL_BRANCH":
+            self._failure_tools(working, node, revision)
+
+    def _failure_tools(self, working: Runbook, node: Node, revision: int) -> None:
+        import streamlit as st
+
+        persisted = working
         candidates = [
             entry for entry in working.nodes if entry.id != node.id and entry.action != "core.start"
         ]
         if not candidates:
-            st.error("FAIL_BRANCH needs another node to receive the failure path.")
+            st.error("O tratamento FAIL_BRANCH exige outra etapa como destino do caminho de falha.")
             return
         current = next(
             (
@@ -42,13 +54,12 @@ class FlowOpsGovernedUI(FlowOpsWorkspaceUI):
         )
         ids = [entry.id for entry in candidates]
         index = ids.index(current) if current in ids else 0
-        st.subheader("Failure route")
+        st.subheader("Caminho de falha")
         st.caption(
-            "A failure edge is explicit. Point it to a recovery/notification path; use a "
-            "core.compensation node when an AWS compensating Action is required."
+            "A conexão de falha deve ser definida explicitamente. Direcione-a para recuperação ou notificação; use uma etapa core.compensation quando for necessária uma ação compensatória na AWS."
         )
         target = st.selectbox(
-            "Failure target",
+            "Destino da falha",
             ids,
             index=index,
             format_func=lambda node_id: next(
@@ -60,7 +71,7 @@ class FlowOpsGovernedUI(FlowOpsWorkspaceUI):
         )
         editable = self._granted("runbook.edit", working)
         if st.button(
-            "Apply failure route",
+            "Aplicar caminho de falha",
             disabled=not editable,
             key=f"flowops:failure-apply:{persisted.id}:{node.id}",
         ):

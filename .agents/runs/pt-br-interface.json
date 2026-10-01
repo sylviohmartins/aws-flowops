@@ -1,0 +1,43 @@
+{
+  "id": "pt-br-interface",
+  "phase": "PROMOTION_DECISION",
+  "requirements": [
+    {"id": "REQ-001", "description": "Translate all owned UI copy and in-app guide to Brazilian Portuguese", "status": "DONE", "evidence": ["10-page Chromium inspection in browser-artifacts/workspace/pt-br; menu, forms, upload, calendar, native theme menu, execution and export journeys PASS", "flowops/streamlit/operator_guide.md and docs/LOCALIZATION.md", "Technical AWS identifiers, SDK reference text, original diagnostic details and user-authored/persisted data are intentionally preserved; not an automatic translation of arbitrary AWS content"]},
+    {"id": "REQ-002", "description": "Localize presentation of states, forms and errors while preserving AWS contracts and immutable user data", "status": "DONE", "evidence": ["tests/test_localization.py: labels, schemas, enums, original values, redaction, template defaults and existing published snapshot invariants", "browser_localization.check_adapter: dynamic DOM, iframe, cleanup and unchanged user inputs/options/code", "workspace Chromium: manual approval, immutable version, JSON/CSV and failure checkpoint exports passed"]},
+    {"id": "REQ-003", "description": "Validate Portuguese journeys and regression checks", "status": "BLOCKED", "reason": "All local functional checks passed; dependency audit cannot reach the vulnerability service and exact-tree GitHub CI requires remote publication not requested by the user. No promotion readiness claim.", "evidence": ["244 passed, 5 skipped, 196 subtests passed; 96.24% coverage", "Both Chromium journeys passed", "Ruff format/check, mypy, Bandit, repository validation and build passed"]}
+  ],
+  "tasks": [
+    {"id": "localization", "wave": 1, "status": "DONE", "requirementIds": ["REQ-001", "REQ-002"], "files": ["flowops/streamlit", "standalone_app.py", "local_app.py", "tests", "scripts/browser_acceptance.py", "scripts/browser_workspace.py", "scripts/browser_localization.py", "scripts/browser_local_lab.py", "docs/LOCALIZATION.md", "README.md", "pyproject.toml"]},
+    {"id": "promotion-checks", "wave": 2, "status": "BLOCKED", "requirementIds": ["REQ-003"], "files": []}
+  ],
+  "checks": [
+    {"name": "pytest coverage", "required": true, "status": "PASSED", "evidence": "browser-artifacts/pt-br-regression.log: 244 passed, 5 skipped, 196 subtests passed in 40.73s; 96.24%, minimum 96% unchanged"},
+    {"name": "legacy Chromium journey", "required": true, "status": "PASSED", "evidence": "browser-artifacts/pt-br-browser.log and result.json: create/configure/drag/connect/disconnect/map/validate/publish/execute/history/replay PASS"},
+    {"name": "workspace Chromium journey", "required": true, "status": "PASSED", "evidence": "browser-artifacts/pt-br-workspace.log and workspace/result.json: query/map/approval/Lambda/exports/failure/mobile/10 pt-BR pages/native controls PASS"},
+    {"name": "ruff format and lint", "required": true, "status": "PASSED", "evidence": "ruff format --check .: 220 files already formatted; ruff check .: all checks passed, 2026-09-11"},
+    {"name": "mypy", "required": true, "status": "PASSED", "evidence": "mypy flowops: 56 source files, no issues, 2026-09-11"},
+    {"name": "Bandit", "required": true, "status": "PASSED", "evidence": "bandit -r flowops -ll: 7903 lines, zero findings, 2026-09-11"},
+    {"name": "repository instructions", "required": true, "status": "PASSED", "evidence": "python scripts/agents/validate.py: ok, 16 canonical skills"},
+    {"name": "build", "required": true, "status": "PASSED", "evidence": "browser-artifacts/pt-br-build.log: sdist and wheel built; ui_locale.js included"},
+    {"name": "review and whitespace", "required": true, "status": "PASSED", "evidence": "git diff --check passed; inspected presentation boundaries, production token, redaction, SDK keys, user text, published snapshots and component observer lifecycle"},
+    {"name": "dependency audit", "required": true, "status": "BLOCKED", "evidence": "browser-artifacts/pt-br-audit.log: pip_audit --timeout 15 failed ConnectionResetError 10054. No TLS bypass or dependency changes."},
+    {"name": "exact-tree GitHub CI", "required": true, "status": "NOT_RUN", "evidence": "No push, commit or promotion requested/performed. Existing HEAD CI does not validate this working tree."},
+    {"name": "opt-in integration and installation", "required": false, "status": "NOT_RUN", "evidence": "Five opt-in skips: Docker lab, pending PostgreSQL queue, two PostgreSQL cases and installation smoke. Prior workspace-usability run has separate integration evidence; not reused as current-tree validation."}
+  ],
+  "failures": [
+    {"status": "RESOLVED", "summary": "Old English UI assertions updated; empty tables now assert Portuguese empty-state and decimal comma."},
+    {"status": "RESOLVED", "summary": "Native React Flow context-menu selector and Streamlit 1.63 upload/theme controls corrected and verified in Chromium."},
+    {"status": "RESOLVED", "summary": "Mechanical test translations of SDK keys Table, Name and Source restored; SDK contracts remain unchanged."},
+    {"status": "RESOLVED", "summary": "Browser selection waits for the worker's complete terminal graph before clicking the failed node; final checkpoint still asserts exact query node and AWS error code."},
+    {"status": "BLOCKED", "summary": "Vulnerability service connection reset; no clean dependency audit claim."}
+  ],
+  "checkpoint": {
+    "branch": "codex/code-defined-tours", "base": "8450725", "lastReconciled": "2026-09-11",
+    "completionGate": "Executed --final: FAIL only because dependency audit is BLOCKED and exact-tree GitHub CI is NOT_RUN. Functional/local checks passed.",
+    "preview": "Verified http://127.0.0.1:8510 in Chromium after reload: lang pt-BR and native theme menu translated; existing preview.db preserved; browser-artifacts/pt-br-preview.png.",
+    "nextAction": "Localization is implemented and locally validated. Restore dependency-audit connectivity; obtain explicit remote publication/promotion direction before exact-tree GitHub CI. Do not redo completed translation or alter stored user data.",
+    "decisions": ["Preserved existing dirty worktree changes", "Did not remove or reorganize pages", "No translated AWS keys/enums, identifiers, user-authored content or persisted snapshots", "New template/clone defaults are Portuguese only at creation in the UI", "No real AWS effects, schema migrations, credentials changes, deployment or GitHub writes", "Preview 8510 uses only browser-artifacts/workspace/preview.db; stopped only its verified process to reload modules", "DOM adapter follows installed Streamlit and same-origin React Flow controls; raw SDK documentation remains available separately", "Completion gate must retain external audit/CI blockers, not be weakened for a PASS"],
+    "risks": ["Third-party DOM changes require browser regression on upgrades", "Cross-origin externally hosted React Flow interiors cannot be localized by the adapter", "Host document language is pt-BR while the FlowOps component is mounted", "Original provider/user data may legitimately contain English", "Dependency audit blocked and exact-tree CI not executed"],
+    "impacts": {"AWS": "none", "persistence": "no migration/history rewrite; only new UI-authored defaults", "security": "presentation/redaction preserved; no authorization changes", "deployment": "local preview process reload only", "rollback": "revert localization-only edits and restart; preserve other worktree changes and databases"}
+  }
+}

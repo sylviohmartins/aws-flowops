@@ -1,0 +1,98 @@
+/* FlowOps-only selectors: never restyle the embedding host or iframe internals. */
+:is(.st-key-flowops-workspace, .st-key-flowops-node-editor) {
+  --flowops-space-sm: 0.5rem;
+  --flowops-space-md: 1rem;
+  --flowops-space-lg: 1.5rem;
+  --flowops-control-height: 2.75rem;
+  min-width: 0;
+  max-width: 90rem;
+  margin-inline: auto;
+  gap: var(--flowops-space-md);
+}
+
+:is(.st-key-flowops-workspace, .st-key-flowops-node-editor) [data-testid="stVerticalBlock"] {
+  gap: var(--flowops-space-md);
+}
+
+/* A shared grid also wraps inside a narrow host column, not just a small viewport. */
+:is(.st-key-flowops-workspace, .st-key-flowops-node-editor) [data-testid="stHorizontalBlock"] {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: var(--flowops-space-md);
+  align-items: start;
+}
+
+:is(.st-key-flowops-workspace, .st-key-flowops-node-editor) [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+  width: 100%;
+  min-width: 0;
+}
+
+.st-key-flowops-workspace [data-testid="stHorizontalBlock"]:has([data-testid="stMetric"]) {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr));
+}
+
+:is(.st-key-flowops-workspace, .st-key-flowops-node-editor) :is(h1, h2, h3) {
+  padding-block: var(--flowops-space-sm);
+  overflow-wrap: anywhere;
+  line-height: 1.3;
+}
+
+.st-key-flowops-workspace h1 { font-size: 2rem; }
+.st-key-flowops-workspace h2 { font-size: 1.5rem; }
+:is(.st-key-flowops-workspace, .st-key-flowops-node-editor) h3 { font-size: 1.125rem; }
+
+:is(.st-key-flowops-workspace, .st-key-flowops-node-editor) :is([data-testid="stCaptionContainer"], [data-testid="stWidgetLabel"], [data-testid="stAlertContentInfo"], [data-testid="stAlertContentWarning"]) {
+  overflow-wrap: anywhere;
+}
+
+:is(.st-key-flowops-workspace, .st-key-flowops-node-editor) [data-testid="stWidgetLabel"] {
+  min-height: 1.5rem;
+  margin-bottom: var(--flowops-space-sm);
+}
+
+:is(.st-key-flowops-workspace, .st-key-flowops-node-editor) :is([data-testid="stButton"], [data-testid="stFormSubmitButton"], [data-testid="stDownloadButton"]) button {
+  min-height: var(--flowops-control-height);
+  padding: var(--flowops-space-sm) var(--flowops-space-md);
+  overflow-wrap: anywhere;
+}
+
+/* Action rows share a full-width hit area; toolbar/icon buttons are untouched. */
+:is(.st-key-flowops-workspace, .st-key-flowops-node-editor) [data-testid="stHorizontalBlock"] [data-testid="stElementContainer"]:has(> :is([data-testid="stButton"], [data-testid="stFormSubmitButton"], [data-testid="stDownloadButton"])) {
+  width: 100%;
+}
+:is(.st-key-flowops-workspace, .st-key-flowops-node-editor) [data-testid="stHorizontalBlock"] :is([data-testid="stButton"], [data-testid="stFormSubmitButton"], [data-testid="stDownloadButton"]) button {
+  width: 100%;
+}
+
+/* The localization adapter has no visible content and must not reserve a row. */
+.st-key-flowops-workspace .st-key-flowops-pt-br { display: none; }
+
+.st-key-flowops-navigation [role="radiogroup"] { gap: 0.25rem; }
+.st-key-flowops-navigation [role="radiogroup"] label {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid transparent;
+  align-items: center;
+}
+.st-key-flowops-navigation [role="radiogroup"] label:hover { background: #438f8912; }
+.st-key-flowops-navigation [role="radiogroup"] label:has(input:checked) {
+  background: #438f891a;
+  border-color: #438f895c;
+}
+.st-key-flowops-navigation [role="radiogroup"] label:focus-within {
+  outline: 2px solid #438f89;
+  outline-offset: 2px;
+}
+
+@media (max-width: 40rem) {
+  .st-key-flowops-workspace h1 { font-size: 1.625rem; }
+  :is(.st-key-flowops-workspace, .st-key-flowops-node-editor) [data-testid="stElementContainer"]:has(> :is([data-testid="stButton"], [data-testid="stFormSubmitButton"], [data-testid="stDownloadButton"])) {
+    width: 100%;
+  }
+  :is(.st-key-flowops-workspace, .st-key-flowops-node-editor) :is([data-testid="stButton"], [data-testid="stFormSubmitButton"], [data-testid="stDownloadButton"]) button {
+    width: 100%;
+  }
+}

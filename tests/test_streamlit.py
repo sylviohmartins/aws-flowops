@@ -51,8 +51,10 @@ class StreamlitSmokeTests(unittest.TestCase):
 
                 app.sidebar.radio[0].set_value("Runbooks")
                 app.run(timeout=20)
-                self._element(app.text_input, "Name override").set_value("Smoke Runbook")
-                self._element(app.button, "Create runbook").click()
+                self._element(app.text_input, "Nome do procedimento (opcional)").set_value(
+                    "Smoke Runbook"
+                )
+                self._element(app.button, "Criar procedimento").click()
                 app.run(timeout=20)
                 self.assertEqual(list(app.exception), [])
 
@@ -66,7 +68,7 @@ class StreamlitSmokeTests(unittest.TestCase):
                 app.sidebar.radio[0].set_value("Editor")
                 app.run(timeout=20)
                 self.assertEqual(list(app.exception), [])
-                publish = self._element(app.button, "Publish version")
+                publish = self._element(app.button, "Publicar versão")
                 self.assertFalse(publish.disabled)
                 publish.click()
                 app.run(timeout=20)
@@ -76,7 +78,7 @@ class StreamlitSmokeTests(unittest.TestCase):
                 app.sidebar.radio[0].set_value("Execute")
                 app.run(timeout=20)
                 self.assertEqual(list(app.exception), [])
-                self._element(app.button, "Submit execution").click()
+                self._element(app.button, "Enviar execução").click()
                 app.run(timeout=20)
                 self.assertEqual(list(app.exception), [])
 
@@ -102,7 +104,7 @@ class StreamlitSmokeTests(unittest.TestCase):
                 app.sidebar.radio[0].set_value("Executions")
                 app.run(timeout=20)
                 self.assertEqual(list(app.exception), [])
-                self._element(app.selectbox, "Execution detail")
+                self._element(app.selectbox, "Detalhes da execução")
 
                 app.sidebar.radio[0].set_value("Audit")
                 app.run(timeout=20)

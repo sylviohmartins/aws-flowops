@@ -10,6 +10,7 @@ from flowops.application import FlowOpsRuntime
 from flowops.domain.models import AWSContext, Edge, Identity, Node, Status
 from flowops.persistence.repository import Repository
 from flowops.templates import blank
+from tests.app_test_support import close_app_runtime
 
 
 def element(elements: Any, label: str) -> Any:
@@ -22,6 +23,7 @@ class ReleaseUITests(unittest.TestCase):
             database = str(Path(directory) / "ui.db")
             previous = os.environ.get("FLOWOPS_DATABASE")
             os.environ["FLOWOPS_DATABASE"] = database
+            app = None
             try:
                 repository = Repository(database)
                 book = blank("author", "default")
@@ -43,36 +45,41 @@ class ReleaseUITests(unittest.TestCase):
                 ).run(timeout=25)
                 app.sidebar.radio[0].set_value("Editor")
                 app.run(timeout=25)
-                element(app.selectbox, "Node properties").set_value("lambda_change")
+                element(app.selectbox, "Propriedades da etapa").set_value("lambda_change")
                 app.run(timeout=25)
                 self.assertFalse(app.exception)
                 self.assertTrue(
-                    any("Input schema browser" == expander.label for expander in app.expander)
+                    any(
+                        "Estrutura dos campos de entrada" == expander.label
+                        for expander in app.expander
+                    )
                 )
-                element(app.button, "Load CURRENT and compare PROPOSED").click()
+                element(app.button, "Carregar estado ATUAL e comparar com o PROPOSTO").click()
                 app.run(timeout=25)
                 self.assertFalse(app.exception)
                 self.assertTrue(
                     any("CURRENT" in code.value and "Timeout" in code.value for code in app.code)
                 )
-                element(app.button, "Bind reviewed RevisionId").click()
+                element(app.button, "Aplicar RevisionId revisado").click()
                 app.run(timeout=25)
-                element(app.button, "Save draft").click()
+                element(app.button, "Salvar rascunho").click()
                 app.run(timeout=25)
                 saved, _ = repository.get_draft(book.id)
                 self.assertEqual(saved.nodes[1].config["RevisionId"], "demo-revision")
-                element(app.button, "Duplicate selected node").click()
+                element(app.button, "Duplicar etapa selecionada").click()
                 app.run(timeout=25)
                 self.assertFalse(app.exception)
-                copy_id = element(app.selectbox, "Node properties").value
+                copy_id = element(app.selectbox, "Propriedades da etapa").value
                 self.assertNotEqual(copy_id, "lambda_change")
-                element(app.button, "Validate").click()
+                element(app.button, "Validar").click()
                 app.run(timeout=25)
-                self.assertTrue(any("Disconnected node" in error.value for error in app.error))
-                element(app.button, "Remove selected node").click()
+                self.assertTrue(any("Etapa desconectada" in error.value for error in app.error))
+                element(app.button, "Remover etapa selecionada").click()
                 app.run(timeout=25)
                 self.assertFalse(app.exception)
             finally:
+                if app is not None:
+                    close_app_runtime(app, repository)
                 if previous is None:
                     os.environ.pop("FLOWOPS_DATABASE", None)
                 else:
@@ -102,15 +109,18 @@ FlowOpsPage(Identity(id="admin", roles=["ADMIN"]), AWSContext(environment="produ
             app = AppTest.from_string(script).run(timeout=25)
             app.sidebar.radio[0].set_value("Executions")
             app.run(timeout=25)
-            element(app.button, "Run again").click()
+            element(app.button, "Executar novamente").click()
             app.run(timeout=25)
-            self.assertTrue(any("exact target account" in error.value for error in app.error))
+            self.assertTrue(any("ID exato da conta" in error.value for error in app.error))
             self.assertEqual(len(runtime.engine.store.history()), 1)
-            element(app.text_input, "Type PRODUCTION to run again").set_value("PRODUCTION")
-            element(app.text_input, "Type the target AWS account to run again").set_value(
-                "123456789012"
+            element(app.text_input, "Digite PRODUCTION para executar novamente").set_value(
+                "PRODUCTION"
             )
-            element(app.button, "Run again").click()
+            element(
+                app.text_input, "Digite a conta AWS de destino para executar novamente"
+            ).set_value("123456789012")
+            element(app.button, "Executar novamente").click()
             app.run(timeout=25)
             self.assertFalse(app.exception)
             self.assertEqual(len(runtime.engine.store.history()), 2)
+            close_app_runtime(app, repository, context)
