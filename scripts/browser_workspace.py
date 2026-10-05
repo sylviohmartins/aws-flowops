@@ -183,42 +183,98 @@ def select_result_node(page: Page, node_id: str) -> None:
     ) from last_error
 
 
-def ensure_node_dialog_section(page: Page, section: str, target_label: str) -> Locator:
+def open_node_dialog(page: Page, node_id: str | None = None) -> Locator:
+    """Reopen a node editor even when a rerun clears the selected-node controls."""
+    last_error: Exception | None = None
+    for _ in range(4):
+        dialog = page.get_by_role("dialog")
+        if dialog.is_visible():
+            return dialog
+        try:
+            edit = page.get_by_role("button", name="Editar etapa selecionada", exact=True)
+            if edit.is_visible():
+                edit.click(timeout=3000)
+            elif node_id is not None:
+                canvas = page.frame_locator('iframe[title="streamlit_flow.streamlit_flow"]')
+                node = canvas.locator(f'.react-flow__node[data-id="{node_id}"]')
+                expect(node).to_be_visible(timeout=5000)
+                node.click()
+            else:
+                canvas = page.frame_locator('iframe[title="streamlit_flow.streamlit_flow"]')
+                selected = canvas.locator(".react-flow__node.selected")
+                expect(selected).to_have_count(1, timeout=3000)
+                selected.click()
+            settled(page)
+            dialog = page.get_by_role("dialog")
+            expect(dialog).to_be_visible(timeout=5000)
+            return dialog
+        except (PlaywrightError, AssertionError) as exc:
+            last_error = exc
+            page.keyboard.press("Escape")
+            page.wait_for_timeout(200)
+    raise AssertionError(f"Could not reopen node dialog for {node_id!r}") from last_error
+
+
+def ensure_node_dialog_section(
+    page: Page,
+    section: str,
+    target_label: str,
+    *,
+    node_id: str | None = None,
+) -> Locator:
     """Reopen a node dialog/section after Streamlit reruns close the modal."""
-    dialog = page.get_by_role("dialog")
-    if not dialog.is_visible():
-        page.get_by_role("button", name="Editar etapa selecionada", exact=True).click()
-        settled(page)
-        dialog = page.get_by_role("dialog")
-        expect(dialog).to_be_visible(timeout=5000)
-    target = dialog.get_by_role("combobox", name=target_label, exact=True)
-    if not target.is_visible():
-        dialog.get_by_text(section, exact=True).click()
-        settled(page)
-        dialog = page.get_by_role("dialog")
-        expect(dialog).to_be_visible(timeout=5000)
-        target = dialog.get_by_role("combobox", name=target_label, exact=True)
-    expect(target).to_be_visible(timeout=5000)
-    return dialog
+    last_error: Exception | None = None
+    for _ in range(4):
+        try:
+            dialog = open_node_dialog(page, node_id)
+            target = dialog.get_by_role("combobox", name=target_label, exact=True)
+            if target.is_visible():
+                return dialog
+            toggle = dialog.get_by_text(section, exact=True)
+            expect(toggle).to_be_visible(timeout=5000)
+            toggle.click()
+            settled(page)
+            dialog = open_node_dialog(page, node_id)
+            target = dialog.get_by_role("combobox", name=target_label, exact=True)
+            expect(target).to_be_visible(timeout=5000)
+            return dialog
+        except (PlaywrightError, AssertionError) as exc:
+            last_error = exc
+            page.wait_for_timeout(200)
+    raise AssertionError(
+        f"Node section {section!r} did not expose {target_label!r}"
+    ) from last_error
 
 
-def ensure_node_dialog_field(page: Page, section: str, field_label_text: str) -> Locator:
+def ensure_node_dialog_field(
+    page: Page,
+    section: str,
+    field_label_text: str,
+    *,
+    node_id: str | None = None,
+) -> Locator:
     """Reopen a node dialog/section and return it once a resulting field is visible."""
-    dialog = page.get_by_role("dialog")
-    if not dialog.is_visible():
-        page.get_by_role("button", name="Editar etapa selecionada", exact=True).click()
-        settled(page)
-        dialog = page.get_by_role("dialog")
-        expect(dialog).to_be_visible(timeout=5000)
-    field = dialog.get_by_label(field_label_text, exact=True)
-    if not field.is_visible():
-        dialog.get_by_text(section, exact=True).click()
-        settled(page)
-        dialog = page.get_by_role("dialog")
-        expect(dialog).to_be_visible(timeout=5000)
-        field = dialog.get_by_label(field_label_text, exact=True)
-    expect(field).to_be_visible(timeout=5000)
-    return dialog
+    last_error: Exception | None = None
+    for _ in range(4):
+        try:
+            dialog = open_node_dialog(page, node_id)
+            field = dialog.get_by_label(field_label_text, exact=True)
+            if field.is_visible():
+                return dialog
+            toggle = dialog.get_by_text(section, exact=True)
+            expect(toggle).to_be_visible(timeout=5000)
+            toggle.click()
+            settled(page)
+            dialog = open_node_dialog(page, node_id)
+            field = dialog.get_by_label(field_label_text, exact=True)
+            expect(field).to_be_visible(timeout=5000)
+            return dialog
+        except (PlaywrightError, AssertionError) as exc:
+            last_error = exc
+            page.wait_for_timeout(200)
+    raise AssertionError(
+        f"Node section {section!r} did not expose field {field_label_text!r}"
+    ) from last_error
 
 
 def choose_structural_kind(
@@ -228,11 +284,12 @@ def choose_structural_kind(
     *,
     section: str,
     resulting_field_label: str,
+    node_id: str | None = None,
 ) -> Locator:
     """Change a value kind and validate the newly rendered editor after callback reruns."""
     last_error: Exception | None = None
     for _ in range(4):
-        ensure_node_dialog_section(page, section, type_label)
+        ensure_node_dialog_section(page, section, type_label, node_id=node_id)
         try:
             control = combobox(page, type_label)
             expect(control).to_be_visible(timeout=5000)
@@ -244,7 +301,12 @@ def choose_structural_kind(
             page.keyboard.press("Enter")
             page.wait_for_timeout(250)
             settled(page)
-            return ensure_node_dialog_field(page, section, resulting_field_label)
+            return ensure_node_dialog_field(
+                page,
+                section,
+                resulting_field_label,
+                node_id=node_id,
+            )
         except (PlaywrightError, AssertionError) as exc:
             last_error = exc
             page.keyboard.press("Escape")
@@ -260,12 +322,13 @@ def choose_first_option(
     expected: str,
     *,
     section: str,
+    node_id: str | None = None,
 ) -> Locator:
     """Choose the semantic first option and validate it after any Streamlit rerun."""
     last_error: Exception | None = None
     actual = "<not mounted>"
     for _ in range(4):
-        dialog = ensure_node_dialog_section(page, section, label)
+        dialog = ensure_node_dialog_section(page, section, label, node_id=node_id)
         try:
             control = combobox(page, label)
             expect(control).to_be_visible(timeout=5000)
@@ -282,7 +345,7 @@ def choose_first_option(
             settled(page)
             # Selection may close/replace the dialog. Reopen the current node and
             # read the newly mounted visible control instead of the detached one.
-            dialog = ensure_node_dialog_section(page, section, label)
+            dialog = ensure_node_dialog_section(page, section, label, node_id=node_id)
             current = combobox(page, label)
             actual = current.input_value(timeout=5000)
             if selected_value_matches(actual, expected):
@@ -455,6 +518,7 @@ def journey(page: Page, url: str, database: Path) -> None:
         "Origem da chave paymentId",
         "Valor fixo",
         section="Buscar recursos e montar consulta DynamoDB",
+        node_id="query",
     )
     dialog.get_by_label("Chave paymentId (S)", exact=True).fill("12345")
     dialog.get_by_role("button", name="Aplicar requisição DynamoDB gerada", exact=True).click()
@@ -463,6 +527,7 @@ def journey(page: Page, url: str, database: Path) -> None:
         page,
         "Buscar recursos e montar consulta DynamoDB",
         "Origem da chave paymentId",
+        node_id="query",
     )
     expect(dialog.get_by_label(field_label("KeyConditionExpression"), exact=True)).to_have_value(
         re.compile(":pk")
@@ -584,6 +649,7 @@ def journey(page: Page, url: str, database: Path) -> None:
         "Texto",
         section="Propriedades avançadas da etapa",
         resulting_field_label=field_label("TableName"),
+        node_id="query",
     )
     dialog.get_by_label(field_label("TableName"), exact=True).fill("missing-demo-table")
     dialog.get_by_role("button", name="Aplicar configuração ao rascunho", exact=True).press("Enter")
