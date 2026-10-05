@@ -1,6 +1,6 @@
 {
   "id": "visual-authoring-completion",
-  "phase": "VALIDATE",
+  "phase": "REVIEW",
   "requirements": [
     {
       "id": "REQ-001",
@@ -43,9 +43,7 @@
       "evidence": [
         "Final consolidated local gate: 358 passed, 197 subtests passed, 0 skipped, 0 failed, coverage 96.44%.",
         "All four browser gates passed: general acceptance, local lab, workspace and authoring-completion.",
-        "Exact candidate SHA f73eaee9acc5b12a1e4955305ddeb16b242c08f1 was published on codex/code-defined-tours.",
-        "GitHub Actions Quality push run 36434488494 completed with success.",
-        "GitHub Actions Quality pull_request run 36434498525 completed with success."
+        "Exact candidate SHA 201b6b72163fb910c89f06263f9a951b1e5a5a10 passed GitHub Actions Quality on push run 203 and pull_request run 204."
       ]
     },
     {
@@ -60,17 +58,19 @@
     {
       "id": "REQ-007",
       "description": "Preparar e analisar avaliação com 5 técnicos e 5 não técnicos reais",
-      "status": "IN_PROGRESS",
+      "status": "BLOCKED",
       "evidence": [
-        "Roteiro permanece em docs/UX_AUTHORING_USER_STUDY.md; resultados de participantes reais ainda não foram coletados."
-      ]
+        "docs/UX_AUTHORING_USER_STUDY.md contains the approved protocol and explicitly states automated tests do not count as participants.",
+        "The technical candidate and exact-tree CI are green; this blocker is external usability evidence, not an unresolved code or CI defect."
+      ],
+      "reason": "The protocol requires five real technical and five real non-technical participants. Automated agents/browser tests explicitly do not count as participants, and no real participant sessions are available to this remote execution."
     }
   ],
   "tasks": [
     {
       "id": "close-authoring-plan",
       "wave": 1,
-      "status": "IN_PROGRESS",
+      "status": "BLOCKED",
       "requirementIds": [
         "REQ-001",
         "REQ-002",
@@ -87,7 +87,8 @@
         "scripts/browser_authoring.py",
         "docs/",
         ".agents/runs/visual-authoring-completion.json"
-      ]
+      ],
+      "reason": "REQ-007 requires 10 real participant sessions before the human-study workstream can be closed."
     }
   ],
   "checks": [
@@ -115,18 +116,22 @@
       "name": "dependency-audits",
       "status": "PASS",
       "evidence": "npm audit 0 vulnerabilities; isolated pip-audit reported no known vulnerabilities"
+    },
+    {
+      "name": "exact-tree-remote-ci",
+      "status": "PASS",
+      "evidence": "SHA 201b6b72163fb910c89f06263f9a951b1e5a5a10: Quality push run 203=success; Quality pull_request run 204=success; Windows, Ubuntu, all four browser gates and Browser evidence passed."
     }
   ],
   "failures": [],
   "checkpoint": {
     "branch": "codex/code-defined-tours",
-    "nextAction": "Automated AC01-AC18, local quality/browser gates and exact-tree remote CI are green. Remaining non-automated gate: collect the planned 5 technical + 5 non-technical human-study results before treating the usability study as complete. Do not merge/promote without a separate promotion decision.",
+    "nextAction": "Run the prepared usability protocol with T01-T05 and N01-N05 real participants on the validated DEMO build, record anonymized results, fix any blocking findings, then re-run the completion gate before promotion.",
     "decisions": [
-      "React remains a bounded component over the existing backend/runbook contract.",
-      "The newly created/imported/duplicated/restored runbook selection is synchronized before Streamlit instantiates its persistent selectbox.",
-      "Resource discovery is explicit and read-only; applying a discovered resource remains a separate user action.",
-      "Do not claim the human usability study or exact-tree remote CI as complete until they actually occur.",
-      "Do not promote or deploy the dirty tree without explicit authorization."
+      "Automated AC01-AC18 and exact-tree remote CI are complete and green.",
+      "The human usability study is not simulated: automated browser/agent runs cannot satisfy REQ-007.",
+      "No real AWS mutation, production migration or deployment was used for validation.",
+      "Do not merge/promote while the tracked completion gate is BLOCKED by REQ-007."
     ],
     "impacts": {
       "AWS": "Demo/Moto only during validation; no real AWS mutation",
@@ -134,6 +139,10 @@
       "security": "RBAC/scope preserved; Bandit and dependency audits green",
       "deployment": "Local build only; no production deployment",
       "rollback": "No migration introduced by authoring/discovery changes"
-    }
+    },
+    "risks": [
+      "Human usability findings may reveal workflow issues not captured by automation.",
+      "Participant sessions require real people and consent; no personal data should be stored in the repository."
+    ]
   }
 }

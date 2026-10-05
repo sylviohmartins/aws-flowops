@@ -35,6 +35,16 @@ def test_completion_gate_accepts_evidenced_terminal_run() -> None:
     assert errors == []
 
 
+def test_completion_gate_accepts_canonical_pass_check_status() -> None:
+    run = valid_run()
+    checks = run["checks"]
+    assert isinstance(checks, list)
+    checks[0]["status"] = "PASS"
+    status, errors = evaluate_task_run(run, final=True)
+    assert status == "PASS"
+    assert errors == []
+
+
 def test_completion_gate_rejects_done_requirement_without_evidence() -> None:
     run = valid_run()
     requirements = run["requirements"]
