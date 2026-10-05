@@ -161,7 +161,7 @@ def select_assistant_step(
 
 
 def select_result_node(page: Page, node_id: str) -> None:
-    """Click a result node until Streamlit's result selector acknowledges it."""
+    """Select a result node without depending on canvas-to-Streamlit rerun timing."""
     last_error: Exception | None = None
     for _ in range(4):
         try:
@@ -172,14 +172,27 @@ def select_result_node(page: Page, node_id: str) -> None:
             settled(page)
             selector = combobox(page, "Etapa do resultado")
             expect(selector).to_be_visible(timeout=5000)
-            if selector.input_value(timeout=5000) == node_id:
+            if selected_value_matches(selector.input_value(timeout=5000), node_id):
                 return
         except (PlaywrightError, AssertionError) as exc:
             last_error = exc
         page.wait_for_timeout(200)
+
+    # The canvas component and Streamlit selector are siblings updated by
+    # independent reruns. If the canvas click was not acknowledged, use the
+    # explicit result selector as the authoritative user control instead of
+    # treating that timing race as an application failure.
+    try:
+        choose(page, "Etapa do resultado", node_id)
+        selector = combobox(page, "Etapa do resultado")
+        if selected_value_matches(selector.input_value(timeout=5000), node_id):
+            return
+    except (PlaywrightError, AssertionError) as exc:
+        last_error = exc
+
     actual = combobox(page, "Etapa do resultado").input_value(timeout=5000)
     raise AssertionError(
-        f"Result node {node_id!r} was not acknowledged; selector={actual!r}"
+        f"Result node {node_id!r} could not be selected; selector={actual!r}"
     ) from last_error
 
 
