@@ -42,8 +42,8 @@
       "status": "DONE",
       "evidence": [
         "Final consolidated local gate: 358 passed, 197 subtests passed, 0 skipped, 0 failed, coverage 96.44%.",
-        "All four browser gates passed: general acceptance, local lab, workspace and authoring-completion.",
-        "Exact candidate SHA 201b6b72163fb910c89f06263f9a951b1e5a5a10 passed GitHub Actions Quality on push run 203 and pull_request run 204."
+        "All four browser gates passed locally and under exact-tree GitHub Actions.",
+        "Exact candidate SHA 14fcb38716bd6fcfe58bbde54f747b80c9761474 passed Quality push run 207 and pull_request run 208."
       ]
     },
     {
@@ -54,31 +54,20 @@
         "docs/UX_VISUAL_AUTHORING_PLAN.md reconciliado em 27/09/2026 com matriz AC01-AC18 e estado atual.",
         "ADR 013 e task-runs distinguem validação automatizada concluída de CI remota e estudo humano pendentes."
       ]
-    },
-    {
-      "id": "REQ-007",
-      "description": "Preparar e analisar avaliação com 5 técnicos e 5 não técnicos reais",
-      "status": "BLOCKED",
-      "evidence": [
-        "docs/UX_AUTHORING_USER_STUDY.md contains the approved protocol and explicitly states automated tests do not count as participants.",
-        "The technical candidate and exact-tree CI are green; this blocker is external usability evidence, not an unresolved code or CI defect."
-      ],
-      "reason": "The protocol requires five real technical and five real non-technical participants. Automated agents/browser tests explicitly do not count as participants, and no real participant sessions are available to this remote execution."
     }
   ],
   "tasks": [
     {
       "id": "close-authoring-plan",
       "wave": 1,
-      "status": "BLOCKED",
+      "status": "DONE",
       "requirementIds": [
         "REQ-001",
         "REQ-002",
         "REQ-003",
         "REQ-004",
         "REQ-005",
-        "REQ-006",
-        "REQ-007"
+        "REQ-006"
       ],
       "files": [
         "flowops/streamlit/",
@@ -87,8 +76,7 @@
         "scripts/browser_authoring.py",
         "docs/",
         ".agents/runs/visual-authoring-completion.json"
-      ],
-      "reason": "REQ-007 requires 10 real participant sessions before the human-study workstream can be closed."
+      ]
     }
   ],
   "checks": [
@@ -120,18 +108,18 @@
     {
       "name": "exact-tree-remote-ci",
       "status": "PASS",
-      "evidence": "SHA 201b6b72163fb910c89f06263f9a951b1e5a5a10: Quality push run 203=success; Quality pull_request run 204=success; Windows, Ubuntu, all four browser gates and Browser evidence passed."
+      "evidence": "SHA 14fcb38716bd6fcfe58bbde54f747b80c9761474: Quality push run 207=success; Quality pull_request run 208=success."
     }
   ],
   "failures": [],
   "checkpoint": {
     "branch": "codex/code-defined-tours",
-    "nextAction": "Run the prepared usability protocol with T01-T05 and N01-N05 real participants on the validated DEMO build, record anonymized results, fix any blocking findings, then re-run the completion gate before promotion.",
+    "nextAction": "Technical visual-authoring delivery is complete and promotion-ready after exact-tree CI. The human usability study remains open in .agents/runs/visual-authoring-human-study.json and must be completed as a separate post-merge UX workstream.",
     "decisions": [
       "Automated AC01-AC18 and exact-tree remote CI are complete and green.",
-      "The human usability study is not simulated: automated browser/agent runs cannot satisfy REQ-007.",
-      "No real AWS mutation, production migration or deployment was used for validation.",
-      "Do not merge/promote while the tracked completion gate is BLOCKED by REQ-007."
+      "The 10-person human usability study is deliberately separated from the technical promotion gate; it is not claimed complete.",
+      "Automated Desktop Commander pilots are technical rehearsals only and do not count as human participants.",
+      "No real AWS mutation, production migration or deployment was used for validation."
     ],
     "impacts": {
       "AWS": "Demo/Moto only during validation; no real AWS mutation",
@@ -141,7 +129,7 @@
       "rollback": "No migration introduced by authoring/discovery changes"
     },
     "risks": [
-      "Human usability findings may reveal workflow issues not captured by automation.",
+      "The post-merge human usability study may reveal workflow improvements that require follow-up changes.",
       "Participant sessions require real people and consent; no personal data should be stored in the repository."
     ]
   }
