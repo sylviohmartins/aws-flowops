@@ -71,20 +71,20 @@ def test_apply_canvas_readonly_and_valid_layout_edge_selection() -> None:
 
 def test_apply_canvas_rejects_size_unknown_duplicates_positions_and_removed_edges() -> None:
     book = canvas_book()
-    with pytest.raises(WorkflowValidationError, match="Canvas size limit"):
+    with pytest.raises(WorkflowValidationError, match="limite de tamanho"):
         apply_canvas(book, {"nodes": [{}] * 201, "edges": []})
-    with pytest.raises(WorkflowValidationError, match="Canvas size limit"):
+    with pytest.raises(WorkflowValidationError, match="limite de tamanho"):
         apply_canvas(book, {"nodes": [], "edges": [{}] * 1001})
 
     for nodes in (
         [{"id": "unknown"}],
         [{"id": "start"}, {"id": "start"}],
     ):
-        with pytest.raises(WorkflowValidationError, match="Add or duplicate"):
+        with pytest.raises(WorkflowValidationError, match="Adicione ou duplique"):
             apply_canvas(book, {"nodes": nodes, "edges": []})
 
     for value in (math.inf, math.nan, 100001, -100001):
-        with pytest.raises(WorkflowValidationError, match="Invalid canvas position"):
+        with pytest.raises(WorkflowValidationError, match="Posição inválida"):
             apply_canvas(
                 book,
                 {
@@ -93,7 +93,7 @@ def test_apply_canvas_rejects_size_unknown_duplicates_positions_and_removed_edge
                 },
             )
 
-    with pytest.raises(WorkflowValidationError, match="removed node"):
+    with pytest.raises(WorkflowValidationError, match="etapa removida"):
         apply_canvas(
             book,
             {
@@ -106,9 +106,9 @@ def test_apply_canvas_rejects_size_unknown_duplicates_positions_and_removed_edge
 def test_ui_json_object_and_parameter_coercion_contracts() -> None:
     assert FlowOpsUI._json_object("", label="Config") == {}
     assert FlowOpsUI._json_object('{"enabled":true}', label="Config") == {"enabled": True}
-    with pytest.raises(WorkflowValidationError, match="valid JSON"):
+    with pytest.raises(WorkflowValidationError, match="JSON válido"):
         FlowOpsUI._json_object("{", label="Config")
-    with pytest.raises(WorkflowValidationError, match="JSON object"):
+    with pytest.raises(WorkflowValidationError, match="objeto JSON"):
         FlowOpsUI._json_object("[]", label="Config")
 
     values = {
@@ -129,7 +129,7 @@ def test_ui_json_object_and_parameter_coercion_contracts() -> None:
         "number": 2.5,
         "boolean": True,
     }
-    with pytest.raises(WorkflowValidationError, match="Parameter array must be valid JSON"):
+    with pytest.raises(WorkflowValidationError, match="Parâmetro array deve conter JSON válido"):
         FlowOpsUI._coerce_parameters({"array": (Parameter(type="array"), "[")})
 
 

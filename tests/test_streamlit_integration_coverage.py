@@ -15,9 +15,26 @@ from flowops.streamlit.integration import FlowOpsPage
 
 
 class FakeStreamlit:
+    def expander(self, *args, **kwargs):
+        from contextlib import nullcontext
+
+        return nullcontext()
+
+    def code(self, value, **kwargs):
+        self.messages.append(("code", value))
+
     def __init__(self) -> None:
         self.session_state: dict[str, Any] = {}
         self.messages: list[tuple[str, str]] = []
+
+    def html(self, value: Path) -> None:
+        assert value.name == "workspace.css" and value.is_file()
+
+    def container(self, *, key: str):
+        from contextlib import nullcontext
+
+        assert key == "flowops-workspace"
+        return nullcontext()
 
     def title(self, value: str) -> None:
         self.messages.append(("title", value))
@@ -121,6 +138,7 @@ def test_page_render_success_and_runtime_configuration_error(
             rendered.append(("rendered", AWSContext(), {}))
 
     monkeypatch.setattr(failure_workspace, "FlowOpsGovernedUI", FakeUI)
+    monkeypatch.setattr(integration, "render_component_locale", lambda: None)
     page = FlowOpsPage(
         Identity(id="operator"),
         AWSContext(),
@@ -138,7 +156,11 @@ def test_page_render_success_and_runtime_configuration_error(
 
     page._runtime = invalid_runtime  # type: ignore[method-assign]
     page.render()
-    assert ("error", "invalid runtime configuration") in fake_streamlit.messages
+    assert (
+        "error",
+        "Não foi possível concluir a operação. Consulte os detalhes técnicos para identificar a causa.",
+    ) in fake_streamlit.messages
+    assert ("code", "invalid runtime configuration") in fake_streamlit.messages
 
 
 def test_render_flowops_wrapper_forwards_host_owned_inputs(monkeypatch: pytest.MonkeyPatch) -> None:

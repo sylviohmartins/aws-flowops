@@ -183,7 +183,7 @@ def test_mapper_reports_no_targets_and_no_sources(
         input_schema={"type": "object"},
     )
     ui._editor()
-    assert fake.infos[-1].startswith("This action does not expose")
+    assert fake.infos[-1].startswith("Esta ação não disponibiliza")
 
     fake.infos.clear()
     ui.runtime = SimpleNamespace(
@@ -191,7 +191,9 @@ def test_mapper_reports_no_targets_and_no_sources(
     )
     monkeypatch.setattr("flowops.streamlit.workspace.source_fields", lambda *args: [])
     ui._editor()
-    assert fake.infos == ["No parameter or ancestor output is available to map yet."]
+    assert fake.infos == [
+        "Ainda não há parâmetros ou saídas de etapas anteriores disponíveis para mapear."
+    ]
 
 
 def test_mapper_applies_compatible_mapping_and_schema_defaults(
@@ -212,18 +214,18 @@ def test_mapper_applies_compatible_mapping_and_schema_defaults(
         input_schema=schema,
         parameters={"count": Parameter(type="integer", default=2)},
     )
-    fake.selections = {"Target field": "Count", "Source": "params.count"}
-    fake.clicks = {"Apply mapping"}
+    fake.selections = {"Campo de destino": "Count", "Origem": "params.count"}
+    fake.clicks = {"Aplicar mapeamento"}
     ui._editor()
     assert fake.rerun_called is True
     cached = fake.session_state[ui._working_key(book)]
     mapped = Runbook.model_validate_json(cached["body"])
     assert mapped.nodes[1].config["Count"] == "{{ params.count }}"
-    assert any("integer → number" in value for value in fake.successes)
+    assert any("número inteiro → número" in value for value in fake.successes)
     assert fake.json_values[-1]["Count"] == "{{ params.count }}"
 
     fake.rerun_called = False
-    fake.clicks = {"Apply schema defaults"}
+    fake.clicks = {"Aplicar valores padrão da estrutura"}
     ui._editor()
     cached = fake.session_state[ui._working_key(book)]
     defaulted = Runbook.model_validate_json(cached["body"])
@@ -242,14 +244,14 @@ def test_mapper_disables_incompatible_or_readonly_mapping(
         input_schema={"type": "object", "properties": {"Flag": {"type": "boolean"}}},
         parameters={"name": Parameter(type="string")},
     )
-    fake.selections = {"Target field": "Flag", "Source": "params.name"}
-    fake.clicks = {"Apply mapping"}
+    fake.selections = {"Campo de destino": "Flag", "Origem": "params.name"}
+    fake.clicks = {"Aplicar mapeamento"}
     ui._editor()
-    assert fake.errors[-1].startswith("Type mismatch")
+    assert fake.errors[-1].startswith("Tipos incompatíveis")
     assert fake.rerun_called is False
 
     monkeypatch.setattr(ui, "_granted", lambda permission, working=None: False)
-    fake.clicks = {"Apply schema defaults"}
+    fake.clicks = {"Aplicar valores padrão da estrutura"}
     ui.runtime = SimpleNamespace(
         registry=registry(
             {
@@ -260,7 +262,7 @@ def test_mapper_disables_incompatible_or_readonly_mapping(
             }
         )
     )
-    fake.selections = {"Target field": "Flag", "Source": "params.name"}
+    fake.selections = {"Campo de destino": "Flag", "Origem": "params.name"}
     ui._editor()
     assert fake.rerun_called is False
     cached = fake.session_state[ui._working_key(book)]

@@ -323,6 +323,81 @@ def dynamodb_record_correction(owner: str, team: str) -> Runbook:
     return book
 
 
+def dynamodb_query_lambda(owner: str, team: str) -> Runbook:
+    """Executable reference for query -> transform -> approve -> Lambda."""
+    book = _base(
+        "DynamoDB Query to Lambda",
+        "Consulta um pagamento, transforma a saída e envia um evento aprovado para Lambda.",
+        owner,
+        team,
+    )
+    book.parameters = {
+        "table_name": Parameter(
+            default="payments", description="Tabela DynamoDB no contexto atual"
+        ),
+        "payment_id": Parameter(default="12345", description="Partition key paymentId (String)"),
+        "function_name": Parameter(
+            default="payment-processor", description="Função Lambda de destino"
+        ),
+    }
+    book.nodes = [
+        Node(id="start", action="core.start", label="Início", position=(40, 180)),
+        Node(
+            id="query",
+            action="dynamodb.query",
+            label="Consultar DynamoDB",
+            position=(280, 180),
+            config={
+                "TableName": "{{ params.table_name }}",
+                "KeyConditionExpression": "#pk = :pk",
+                "ExpressionAttributeNames": {"#pk": "paymentId"},
+                "ExpressionAttributeValues": {":pk": {"S": "{{ params.payment_id }}"}},
+                "Limit": 30,
+            },
+        ),
+        Node(
+            id="prepare_event",
+            action="core.map",
+            label="Preparar evento",
+            position=(520, 180),
+            config={
+                "items": "{{ nodes.query.output.Items }}",
+                "template": {
+                    "payment_id": "{{ item.paymentId.S }}",
+                    "status": "{{ item.status.S }}",
+                },
+            },
+        ),
+        Node(
+            id="approve",
+            action="core.approval",
+            label="Aprovar envio",
+            position=(760, 180),
+            config={"message": "Revise os pagamentos e o destino antes do envio para Lambda"},
+        ),
+        Node(
+            id="invoke",
+            action="lambda.invoke",
+            label="Enviar para Lambda",
+            position=(1000, 180),
+            config={
+                "FunctionName": "{{ params.function_name }}",
+                "InvocationType": "RequestResponse",
+                "Payload": {
+                    "source": "flowops",
+                    "payments": "{{ nodes.prepare_event.output.items }}",
+                },
+            },
+        ),
+        Node(id="end", action="core.end", label="Fim", position=(1240, 180)),
+    ]
+    book.edges = [
+        Edge(source=left.id, target=right.id)
+        for left, right in zip(book.nodes, book.nodes[1:], strict=False)
+    ]
+    return book
+
+
 TEMPLATES = {
     template.id: template
     for template in [
@@ -334,6 +409,12 @@ TEMPLATES = {
             fix_stuck_payment,
         ),
         RunbookTemplate("lambda-invoke", "Lambda Invoke", "Invoke a Lambda safely", lambda_invoke),
+        RunbookTemplate(
+            "dynamodb-query-lambda",
+            "DynamoDB Query to Lambda",
+            "Query → transformar resultado → aprovar → enviar evento Lambda",
+            dynamodb_query_lambda,
+        ),
         RunbookTemplate("replay-event", "Replay Event", "Send an SQS event", replay_event),
         RunbookTemplate(
             "dlq-redrive",

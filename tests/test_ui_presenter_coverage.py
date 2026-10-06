@@ -20,11 +20,19 @@ class Column:
 
 
 class Sidebar:
+    def container(self, *, key: str):
+        assert key == "flowops-navigation"
+        return self
+
     def __init__(self) -> None:
         self.page = "Dashboard"
         self.captions: list[str] = []
 
-    def radio(self, label: str, options: list[str], *, key: str) -> str:
+    def selectbox(self, label: str, options: list[str], *, key: str, **kwargs: Any) -> str:
+        assert label == "Área de trabalho"
+        return options[0]
+
+    def radio(self, label: str, options: list[str], *, key: str, **kwargs: Any) -> str:
         assert self.page in options
         return self.page
 
@@ -33,6 +41,14 @@ class Sidebar:
 
 
 class FakeStreamlit:
+    def expander(self, *args, **kwargs):
+        from contextlib import nullcontext
+
+        return nullcontext()
+
+    def code(self, value, **kwargs):
+        self.captions.append(value)
+
     def __init__(self) -> None:
         self.session_state: dict[str, Any] = {}
         self.sidebar = Sidebar()
@@ -56,6 +72,9 @@ class FakeStreamlit:
     def subheader(self, value: str) -> None:
         self.subheaders.append(value)
 
+    def header(self, value: str) -> None:
+        self.subheaders.append(value)
+
     def columns(self, count: int) -> list[Column]:
         assert count == 5
         return self.columns_result
@@ -71,10 +90,16 @@ class FakeStreamlit:
         index: int = 0,
         format_func: Any = None,
         key: str | None = None,
+        on_change: Any = None,
     ) -> str:
         value = self.selected if self.selected in options else options[index]
         if format_func is not None:
             assert format_func(value)
+        previous = self.session_state.get(key) if key is not None else None
+        if key is not None:
+            self.session_state[key] = value
+        if on_change is not None and value != previous:
+            on_change()
         return value
 
     def checkbox(self, label: str, *, value: bool = False, **kwargs: Any) -> bool:
@@ -99,9 +124,9 @@ def ui() -> FlowOpsUI:
 def test_json_object_and_parameter_coercion_contract() -> None:
     assert FlowOpsUI._json_object("", label="Config") == {}
     assert FlowOpsUI._json_object('{"ok":1}', label="Config") == {"ok": 1}
-    with pytest.raises(WorkflowValidationError, match="valid JSON"):
+    with pytest.raises(WorkflowValidationError, match="JSON válido"):
         FlowOpsUI._json_object("{", label="Config")
-    with pytest.raises(WorkflowValidationError, match="JSON object"):
+    with pytest.raises(WorkflowValidationError, match="objeto JSON"):
         FlowOpsUI._json_object("[]", label="Config")
 
     values = {
@@ -116,7 +141,7 @@ def test_json_object_and_parameter_coercion_contract() -> None:
         "optional": None,
         "required": "x",
     }
-    with pytest.raises(WorkflowValidationError, match="Parameter items"):
+    with pytest.raises(WorkflowValidationError, match="Parâmetro items"):
         FlowOpsUI._coerce_parameters({"items": (Parameter(type="array"), "[")})
 
 
@@ -124,7 +149,7 @@ def test_parameter_inputs_render_every_supported_type(monkeypatch: pytest.Monkey
     fake = FakeStreamlit()
     monkeypatch.setitem(sys.modules, "streamlit", fake)
     book = Runbook(
-        name="Parameters",
+        name="Parâmetros",
         parameters={
             "flag": Parameter(type="boolean", default=True, description="flag help"),
             "count": Parameter(type="integer", default=2),
@@ -173,7 +198,7 @@ def test_selected_and_select_runbook_recover_stale_selection(
         list_runbooks=lambda query="": [], versions=lambda value: []
     )
     assert presenter._select_runbook() is None
-    assert fake.infos[-1] == "No runbooks available."
+    assert fake.infos[-1] == "Nenhum procedimento disponível."
 
 
 def test_dashboard_metrics_cover_empty_and_populated_history(
@@ -207,16 +232,16 @@ def test_dashboard_metrics_cover_empty_and_populated_history(
     presenter._visible_executions = lambda limit=1000: executions  # type: ignore[method-assign]
     presenter._dashboard()
     metrics = [item for column in fake.columns_result for item in column.metrics]
-    assert ("Runbooks", 1) in metrics
-    assert ("Executions", 2) in metrics
-    assert ("Success rate", "50.0%") in metrics
+    assert ("Procedimentos", 1) in metrics
+    assert ("Execuções", 2) in metrics
+    assert ("Taxa de sucesso", "50,0%") in metrics
     assert len(fake.frames[-1]) == 2
 
     fake.columns_result = [Column() for _ in range(5)]
     presenter._visible_executions = lambda limit=1000: []  # type: ignore[method-assign]
     presenter._dashboard()
     metrics = [item for column in fake.columns_result for item in column.metrics]
-    assert ("Success rate", "—") in metrics
+    assert ("Taxa de sucesso", "—") in metrics
 
 
 def test_render_routes_page_and_surfaces_domain_errors(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -227,11 +252,14 @@ def test_render_routes_page_and_surfaces_domain_errors(monkeypatch: pytest.Monke
     presenter._dashboard = lambda: called.append("dashboard")  # type: ignore[method-assign]
     presenter.render()
     assert called == ["dashboard"]
-    assert fake.sidebar.captions == ["Operator", "Roles: ADMIN"]
+    assert fake.sidebar.captions == ["Operator", "Perfis de acesso: Administrador"]
 
     def fail() -> None:
         raise WorkflowValidationError("bad page")
 
     presenter._dashboard = fail  # type: ignore[method-assign]
     presenter.render()
-    assert fake.errors == ["bad page"]
+    assert fake.errors == [
+        "Não foi possível concluir a operação. Consulte os detalhes técnicos para identificar a causa."
+    ]
+    assert "bad page" in fake.captions

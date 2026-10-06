@@ -50,38 +50,60 @@ def test_result_rows_handles_scalar_and_nested_provider_outputs() -> None:
     ]
 
 
+class FakeResultUI:
+    def expander(self, *args, **kwargs):
+        from contextlib import nullcontext
+
+        return nullcontext()
+
+    def code(self, value, **kwargs):
+        self.frames.append(value)
+
+    def __init__(self) -> None:
+        self.session_state: dict[str, object] = {}
+        self.frames: list[object] = []
+        self.downloads: list[str] = []
+        self.errors: list[str] = []
+        self.warnings: list[str] = []
+        self.infos: list[str] = []
+
+    def radio(self, label: str, options: list[str], **kwargs: object) -> str:
+        return "Tabela"
+
+    def dataframe(self, rows: object, **kwargs: object) -> None:
+        self.frames.append(rows)
+
+    def caption(self, value: str) -> None:
+        pass
+
+    def json(self, value: object, **kwargs: object) -> None:
+        self.frames.append(value)
+
+    def download_button(self, label: str, data: str, **kwargs: object) -> None:
+        self.downloads.append(data)
+
+    def subheader(self, value: str) -> None:
+        pass
+
+    def selectbox(self, label: str, options: list[str], **kwargs: object) -> str:
+        return options[0]
+
+    def error(self, text: str) -> None:
+        self.errors.append(text)
+
+    def info(self, text: str) -> None:
+        self.infos.append(text)
+
+    def warning(self, text: str) -> None:
+        self.warnings.append(text)
+
+
 def test_render_output_and_results_use_explicit_table_json_toggle(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from flowops.streamlit.results import render_output, render_results
 
-    class FakeStreamlit:
-        def __init__(self) -> None:
-            self.frames: list[object] = []
-            self.downloads: list[str] = []
-
-        def radio(self, label: str, options: list[str], **kwargs: object) -> str:
-            return "Table"
-
-        def dataframe(self, rows: object, **kwargs: object) -> None:
-            self.frames.append(rows)
-
-        def caption(self, value: str) -> None:
-            pass
-
-        def json(self, value: object, **kwargs: object) -> None:
-            self.frames.append(value)
-
-        def download_button(self, label: str, data: str, **kwargs: object) -> None:
-            self.downloads.append(data)
-
-        def subheader(self, value: str) -> None:
-            pass
-
-        def selectbox(self, label: str, options: list[str], **kwargs: object) -> str:
-            return options[0]
-
-    fake = FakeStreamlit()
+    fake = FakeResultUI()
     monkeypatch.setitem(sys.modules, "streamlit", fake)
     render_output({"Items": [{"id": {"S": "1"}}]}, action="dynamodb.query", key="result")
     assert fake.frames

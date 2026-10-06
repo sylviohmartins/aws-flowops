@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 from typing import Any
+
+from flowops.streamlit.localization import display
 
 
 def _attribute(value: Any) -> Any:
@@ -57,36 +61,87 @@ def result_rows(output: Any, action: str = "") -> list[dict[str, Any]]:
     return rows
 
 
-def render_output(output: Any, *, action: str, key: str) -> None:
+def result_csv(rows: list[dict[str, Any]]) -> str:
+    """Spreadsheet-safe CSV: neutralize formula-like strings at export."""
+    output = io.StringIO(newline="")
+    fields = list(dict.fromkeys(name for row in rows for name in row))
+    writer = csv.writer(output)
+
+    def safe(value: Any) -> Any:
+        return (
+            "'" + value
+            if isinstance(value, str)
+            and value.lstrip().startswith(("=", "+", "-", "@", "\t", "\r"))
+            else value
+        )
+
+    writer.writerow([safe(name) for name in fields])
+    writer.writerows([safe(row.get(name, "")) for name in fields] for row in rows)
+    return output.getvalue()
+
+
+def render_output(output: Any, *, action: str, key: str, node_id: str = "node") -> None:
     import streamlit as st
 
-    mode = st.radio("Result format", ["Table", "JSON"], horizontal=True, key=f"{key}:format")
+    mode = st.radio(
+        "Formato do resultado", ["Tabela", "JSON"], horizontal=True, key=f"{key}:format"
+    )
     rows = result_rows(output, action)
-    if mode == "Table" and rows:
+    if mode == "Tabela" and rows:
         st.dataframe(rows, width="stretch", hide_index=True)
-        st.caption("Table view preserves DynamoDB decimal strings and nested JSON values.")
+        st.caption(
+            "A tabela preserva valores decimais do DynamoDB como texto e estruturas JSON aninhadas."
+        )
     else:
         st.json(output, expanded=False)
     st.download_button(
-        "Download result JSON",
+        "Baixar resultado em JSON",
         json.dumps(output, ensure_ascii=False, indent=2),
-        file_name="flowops-result.json",
+        file_name=f"{node_id}-result.json",
         mime="application/json",
         key=f"{key}:download",
     )
+    if rows:
+        st.download_button(
+            "Baixar resultado em CSV",
+            result_csv(rows),
+            file_name=f"{node_id}-result.csv",
+            mime="text/csv",
+            key=f"{key}:csv",
+        )
 
 
-def render_results(execution: Any, node_details: dict[str, Any]) -> None:
+def render_results(
+    execution: Any, node_details: dict[str, Any], *, selected_node: str | None = None
+) -> None:
     import streamlit as st
 
-    available = [
-        node_id for node_id, detail in node_details.items() if detail.get("output") is not None
-    ]
+    available = list(node_details)
     if not available:
         return
-    st.subheader("Inspect node result")
+    st.subheader("Inspecionar resultado da etapa")
     key = f"flowops:results:{execution.id}"
-    selected = st.selectbox("Result node", available, key=f"{key}:node")
+    previous = st.session_state.get(f"{key}:canvas-selection")
+    if selected_node in available and selected_node != previous:
+        st.session_state[f"{key}:node"] = selected_node
+    # A canvas remount can emit None before replaying its last selection. Only a
+    # different concrete selection is a new click; preserve keyboard choice across it.
+    if selected_node in available:
+        st.session_state[f"{key}:canvas-selection"] = selected_node
+    selected = st.selectbox("Etapa do resultado", available, key=f"{key}:node")
     node = next((node for node in execution.snapshot.nodes if node.id == selected), None)
     action = str(node.config.get("action", node.action)) if node else ""
-    render_output(node_details[selected]["output"], action=action, key=f"{key}:{selected}")
+    detail = node_details[selected]
+    if detail.get("output") is not None:
+        render_output(detail["output"], action=action, key=f"{key}:{selected}", node_id=selected)
+    else:
+        st.info(
+            f"Esta etapa ainda não produziu saída. Estado: {display(detail.get('status', 'PENDING'))}."
+        )
+    st.download_button(
+        "Baixar diagnóstico do nó (JSON)",
+        json.dumps(detail, ensure_ascii=False, indent=2),
+        file_name=f"{selected}-checkpoint.json",
+        mime="application/json",
+        key=f"{key}:{selected}:checkpoint",
+    )

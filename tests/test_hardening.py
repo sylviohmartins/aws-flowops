@@ -74,9 +74,9 @@ class HardeningTests(unittest.TestCase):
             runtime = FlowOpsRuntime.aws(
                 repository,
                 [context],
-                generic_allowlist={"ec2.describe_instances"},
+                generic_allowlist={"ec2.describe_hosts"},
             )
-            metadata = runtime.registry.get("ec2.describe_instances").metadata
+            metadata = runtime.registry.get("ec2.describe_hosts").metadata
             runtime.close()
 
             self.assertEqual(metadata.risk, Risk.CRITICAL)

@@ -91,6 +91,7 @@ def test_demo_backend_full_operation_surface_and_errors() -> None:
             {
                 "TableName": "payments",
                 "ExpressionAttributeValues": {":paymentId": {"S": "23456"}},
+                "KeyConditionExpression": "paymentId = :paymentId",
                 "Limit": 100,
             },
         )

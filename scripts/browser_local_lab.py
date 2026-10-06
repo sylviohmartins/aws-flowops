@@ -52,25 +52,34 @@ def main() -> None:
                 try:
                     page.goto("http://127.0.0.1:8501")
                     expect(
-                        page.get_by_text("DEV · 123456789012 · sa-east-1 · LOCAL", exact=True)
+                        page.get_by_text(
+                            "Desenvolvimento · 123456789012 · sa-east-1 · Laboratório local",
+                            exact=True,
+                        )
                     ).to_be_visible()
                     navigate(page, "Resources")
-                    click(page, "Discover resources")
+                    click(page, "Buscar recursos")
                     expect(
                         page.get_by_text("4 recurso(s) encontrado(s).", exact=False)
                     ).to_be_visible()
                     navigate(page, "Execute")
-                    choose(page, "Execution runbook", "XPTO - Recuperar pagamento parado · default")
-                    page.get_by_label("payment_id *", exact=True).fill("PAY-1004")
-                    simulation = page.get_by_label("FlowOps simulation", exact=True)
+                    choose(
+                        page,
+                        "Procedimento a executar",
+                        "XPTO - Recuperar pagamento parado · default",
+                    )
+                    page.get_by_label("Identificador do pagamento (payment_id) *", exact=True).fill(
+                        "PAY-1004"
+                    )
+                    simulation = page.get_by_label("Simulação do FlowOps", exact=True)
                     if simulation.is_checked():
                         simulation.click(force=True)
                         settled(page)
                     expect(simulation).not_to_be_checked()
-                    page.get_by_label("Reason / change reference", exact=True).fill(
+                    page.get_by_label("Motivo / referência da mudança", exact=True).fill(
                         "Browser local lab"
                     )
-                    click(page, "Submit execution")
+                    click(page, "Enviar execução")
                     execution = store.history()[0]
                     deadline = time.monotonic() + 45
                     while (
@@ -79,8 +88,8 @@ def main() -> None:
                     ):
                         time.sleep(0.1)
                     navigate(page, "Approvals")
-                    page.get_by_label("Decision reason", exact=True).fill("Reviewed in browser")
-                    click(page, "Approve")
+                    page.get_by_label("Motivo da decisão", exact=True).fill("Reviewed in browser")
+                    click(page, "Aprovar")
                     while (
                         store.get(execution.id).status
                         in {Status.PENDING, Status.RUNNING, Status.WAITING_APPROVAL}
@@ -104,8 +113,8 @@ def main() -> None:
                     finally:
                         client.close()
                     navigate(page, "Executions")
-                    choose(page, "Execution detail", execution.id)
-                    click(page, "Run again")
+                    choose(page, "Detalhes da execução", execution.id)
+                    click(page, "Executar novamente")
                     settled(page)
                     replay = store.history()[0]
                     while (

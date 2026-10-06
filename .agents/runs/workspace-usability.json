@@ -1,0 +1,234 @@
+{
+  "id": "workspace-usability",
+  "phase": "PROMOTION_DECISION",
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "description": "Remove the tour and provide an operator step-by-step guide",
+      "status": "DONE",
+      "evidence": [
+        "flowops/streamlit/operator_guide.md",
+        "Guide AppTest and wheel asset check: guide packaged, tour absent"
+      ]
+    },
+    {
+      "id": "REQ-002",
+      "description": "Clear navigation and discoverable action creation/configuration",
+      "status": "DONE",
+      "evidence": [
+        "flowops/streamlit/navigation.py",
+        "Catalog filters and contextual editor AppTest"
+      ]
+    },
+    {
+      "id": "REQ-003",
+      "description": "Click a canvas node to edit it and show live execution progress",
+      "status": "DONE",
+      "evidence": [
+        "flowops/streamlit/node_editor.py",
+        "browser_workspace PASS: mouse canvas selection/reopen, keyboard dialog actions, running edge, red query failure and its checkpoint download"
+      ]
+    },
+    {
+      "id": "REQ-004",
+      "description": "Guided DynamoDB query, transformation and Lambda payload composition",
+      "status": "DONE",
+      "evidence": [
+        "flowops/templates.py",
+        "test_query_map_approval_lambda_reference; browser JSON export verified"
+      ]
+    },
+    {
+      "id": "REQ-005",
+      "description": "Expand curated AWS coverage and expose SDK catalog without bypassing host controls",
+      "status": "DONE",
+      "evidence": [
+        "flowops/providers/aws/catalog.py",
+        "149 curated AWS operations / 18 services; 149 contract subtests passed; 431 SDK service models"
+      ]
+    },
+    {
+      "id": "REQ-006",
+      "description": "Explain simulation approvals and verify live demo approval/resume",
+      "status": "DONE",
+      "evidence": [
+        "flowops/streamlit/ui.py",
+        "Live demo approval/resume browser + immutable snapshot and two-person AppTests"
+      ]
+    },
+    {
+      "id": "REQ-007",
+      "description": "Discoverable result export for each node",
+      "status": "DONE",
+      "evidence": [
+        "flowops/streamlit/results.py",
+        "Browser JSON/CSV downloads and formula-neutralization test"
+      ]
+    },
+    {
+      "id": "REQ-008",
+      "description": "Validate changes with regression, browser and repository checks",
+      "status": "BLOCKED",
+      "reason": "Implementation, local quality/browser checks and isolated PostgreSQL/Docker Lambda integrations passed. Dependency vulnerability audit and exact-tree GitHub CI remain unverified.",
+      "evidence": [
+        "229 tests and 196 subtests passed; 5 opt-in skipped; 96.14% coverage",
+        "Two Chromium acceptance scripts passed",
+        "Ruff, mypy, Bandit, build and repository policy passed",
+        "PostgreSQL targeted suite: 5 passed; local AWS suite: 8 passed, 14 subtests; Chromium local lab PASS"
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "workspace",
+      "wave": 1,
+      "status": "BLOCKED",
+      "requirementIds": [
+        "REQ-001",
+        "REQ-002",
+        "REQ-003",
+        "REQ-004",
+        "REQ-005",
+        "REQ-006",
+        "REQ-007",
+        "REQ-008"
+      ],
+      "files": [
+        "flowops/streamlit",
+        "flowops/providers/aws/catalog.py",
+        "flowops/templates.py",
+        "tests",
+        "scripts/browser_workspace.py",
+        "README.md",
+        "pyproject.toml",
+        "docs/WORKSPACE_USABILITY.md"
+      ],
+      "reason": "Feature work done; required external validation remains blocked."
+    }
+  ],
+  "checks": [
+    {
+      "name": "pytest coverage",
+      "status": "PASSED",
+      "required": true,
+      "evidence": "229 passed, 196 subtests, 5 skipped, 96.14%; browser-artifacts/workspace/pytest.log"
+    },
+    {
+      "name": "ruff format and lint",
+      "status": "PASSED",
+      "required": true,
+      "evidence": "116 files formatted; lint pass"
+    },
+    {
+      "name": "mypy",
+      "status": "PASSED",
+      "required": true,
+      "evidence": "54 sources pass"
+    },
+    {
+      "name": "bandit",
+      "status": "PASSED",
+      "required": true,
+      "evidence": "browser-artifacts/workspace/bandit.log; no issues"
+    },
+    {
+      "name": "agent policy",
+      "status": "PASSED",
+      "required": true,
+      "evidence": "16 canonical skills"
+    },
+    {
+      "name": "build",
+      "status": "PASSED",
+      "required": true,
+      "evidence": "python -m build --outdir browser-artifacts/workspace/dist; guide present and no tour assets"
+    },
+    {
+      "name": "legacy browser regression",
+      "status": "PASSED",
+      "required": true,
+      "evidence": "browser-artifacts/workspace/legacy-browser.log; exit 0 after UTF-8 fix"
+    },
+    {
+      "name": "workspace browser",
+      "status": "PASSED",
+      "required": true,
+      "evidence": "browser-artifacts/workspace/result.json PASS; success, manual approval, running animation, second-version failure, JSON/CSV/checkpoint downloads, mobile viewport"
+    },
+    {
+      "name": "dependency audit",
+      "status": "BLOCKED",
+      "required": true,
+      "evidence": "2026-09-10: standard TLS could not verify issuer; using existing pip truststore/system roots then failed with connection reset. No TLS verification disabled. audit.log / audit-system-trust.log."
+    },
+    {
+      "name": "PostgreSQL integration",
+      "status": "PASSED",
+      "required": true,
+      "evidence": "2026-09-10: Engine 28.1.1 healthy. Isolated Compose project flowops-workspace-tests-20260910 and database integration_checks; tests/test_postgres.py + tests/test_pending_queue.py: 5 passed in 8.07s; browser-artifacts/workspace/integration/postgres.xml"
+    },
+    {
+      "name": "Docker Lambda integration",
+      "status": "PASSED",
+      "required": true,
+      "evidence": "2026-09-10: FLOWOPS_TEST_LOCAL_AWS=1 tests/test_local_aws.py: 8 passed, 14 subtests in 41.66s. Moto 5.2.3, PostgreSQL 16, actual Python 3.12 Lambda containers; browser-artifacts/workspace/integration/local-aws.xml. GHCR blob downloads failed EOF; same-maintainer Docker Hub image has identical amd64 manifest 1ed98f3049a8b89083dabb5273b1db8ce3a0352dc9f2c17600eee872106c198d, tagged locally with expected GHCR name. No TLS bypass or configuration change."
+    },
+    {
+      "name": "local lab browser",
+      "status": "PASSED",
+      "required": true,
+      "evidence": "2026-09-10: python -m scripts.browser_local_lab exit 0; browser-artifacts/local-result.json PASS; execution 0dcdb51ff3ce4c00ba58942af891e8bd and replay d7918b64a34140699357352ca3b4e310 both SUCCESS, verified in PostgreSQL. Parameters, discovery, approval, Docker Lambda, DynamoDB effect and replay."
+    },
+    {
+      "name": "exact-tree GitHub CI",
+      "status": "NOT_RUN",
+      "required": true,
+      "evidence": "No push or promotion requested/performed"
+    },
+    {
+      "name": "diff and safety review",
+      "required": true,
+      "status": "PASSED",
+      "evidence": "Reviewed callers and metadata, immutable snapshots, simulation/approval controls, export sanitization and dialog state; git diff --check pass. No production effects."
+    }
+  ],
+  "failures": [
+    {
+      "status": "RESOLVED",
+      "summary": "Windows AppTest runtime held SQLite on temp cleanup; test teardown now closes UI runtime"
+    },
+    {
+      "status": "RESOLVED",
+      "summary": "Legacy browser navigation adapted to localized menu and dialogs; UTF-8 artifact writing"
+    },
+    {
+      "status": "BLOCKED",
+      "summary": "Dependency vulnerability audit remains blocked by certificate/connection reset; no clean audit claim."
+    },
+    {
+      "status": "RESOLVED",
+      "summary": "Docker Desktop/Engine now healthy. Isolated PostgreSQL and local AWS integrations passed, including actual Docker Lambda and Chromium approval/replay journey. GHCR EOF worked around using cryptographically identical same-publisher Docker Hub image."
+    }
+  ],
+  "checkpoint": {
+    "branch": "codex/code-defined-tours",
+    "base": "8450725",
+    "nextAction": "2026-09-11: the current tree also includes the localization tracked in .agents/runs/pt-br-interface.json; use that run for current local quality evidence. Integration evidence here remains historical, not a current-tree revalidation. Restore vulnerability-index connectivity and complete dependency audit, then validate exact branch tree in GitHub CI with explicit push/promotion authority. Preserve PostgreSQL, Docker Lambda and Chromium local lab evidence; do not reimplement completed UI work.",
+    "decisions": [
+      "Tour implementation removed; ignored caches/evidence retained",
+      "Simulation approvals intentional; live demo manual pause validated",
+      "No real AWS calls, production changes or migrations",
+      "Existing database untouched; isolated demo preview on 8510",
+      "No main promotion or remote push",
+      "Integration infrastructure isolated under flowops-workspace-tests-20260910; only its two containers stopped after validation, volume and evidence preserved; user preview 8510 and original database preserved",
+      "Final completion gate FAIL only for pending dependency audit and exact-tree CI; integration test request handled but overall promotion remains blocked"
+    ],
+    "risks": [
+      "Exact-tree GitHub CI not executed",
+      "Dependency audit blocked by certificate/connection reset; no clean audit claim",
+      "Global coverage 96.14% passed; four formerly skipped integration tests exercised separately; setup smoke opt-in still not run. Targeted suite counts overlap baseline tests, not a new aggregate coverage measurement.",
+      "Demo executes a subset of the 149 curated actions; no live AWS validation"
+    ],
+    "lastReconciled": "2026-09-10"
+  }
+}

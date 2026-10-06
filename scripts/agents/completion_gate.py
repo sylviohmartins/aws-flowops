@@ -91,7 +91,7 @@ def evaluate_task_run(run: dict[str, Any], *, final: bool = False) -> tuple[str,
             continue
         required = check.get("required", True) is not False
         status = str(check.get("status", ""))
-        if final and required and status != "PASSED":
+        if final and required and status not in {"PASS", "PASSED"}:
             errors.append(f"required check {check.get('name', '<unnamed>')} is {status or 'unset'}")
 
     for failure in failures:

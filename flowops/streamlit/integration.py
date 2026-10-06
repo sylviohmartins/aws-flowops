@@ -5,6 +5,26 @@ from __future__ import annotations
 from flowops.application import FlowOpsRuntime
 from flowops.domain.models import AWSContext, Identity
 from flowops.persistence.repository import Repository, digest
+from flowops.streamlit.component_locale import render_component_locale
+from flowops.streamlit.layout import render_workspace_style
+from flowops.streamlit.localization import display, render_error
+
+
+def runtime_session_key(
+    repository: Repository,
+    aws_context: AWSContext | None = None,
+    generic_allowlist: set[str] | None = None,
+) -> str:
+    """Return the stable Streamlit session key used for a FlowOps runtime."""
+    context = aws_context or AWSContext()
+    fingerprint = digest(
+        {
+            "repository": repository.database,
+            "context": context.model_dump(mode="json"),
+            "generic_allowlist": sorted(generic_allowlist or set()),
+        }
+    )[:20]
+    return f"flowops:runtime:{fingerprint}"
 
 
 class FlowOpsPage:
@@ -37,14 +57,11 @@ class FlowOpsPage:
             return self.runtime
         import streamlit as st
 
-        fingerprint = digest(
-            {
-                "repository": self.repository.database,
-                "context": self.aws_context.model_dump(mode="json"),
-                "generic_allowlist": sorted(self.generic_allowlist),
-            }
-        )[:20]
-        key = f"flowops:runtime:{fingerprint}"
+        key = runtime_session_key(
+            self.repository,
+            self.aws_context,
+            self.generic_allowlist,
+        )
         runtime = st.session_state.get(key)
         if not isinstance(runtime, FlowOpsRuntime):
             if self.aws_context.mode == "demo":
@@ -63,18 +80,28 @@ class FlowOpsPage:
     def render(self) -> None:
         import streamlit as st
 
+        render_workspace_style()
+        with st.container(key="flowops-workspace"):
+            self._render_workspace()
+
+    def _render_workspace(self) -> None:
+        import streamlit as st
+
         from flowops.streamlit.failure_workspace import FlowOpsGovernedUI
 
+        render_component_locale()
         st.title("AWS FlowOps Studio")
-        st.caption("Visual, versioned and governed AWS operational runbooks")
+        st.caption(
+            "Procedimentos operacionais AWS visuais, versionados e com controles de segurança"
+        )
         st.info(
-            f"{self.aws_context.environment.upper()} · {self.aws_context.account_id} · "
-            f"{self.aws_context.region} · {self.aws_context.mode.upper()}"
+            f"{display(self.aws_context.environment)} · {self.aws_context.account_id} · "
+            f"{self.aws_context.region} · {display(self.aws_context.mode)}"
         )
         try:
             runtime = self._runtime()
         except (RuntimeError, ValueError) as exc:
-            st.error(str(exc))
+            render_error(exc)
             return
         FlowOpsGovernedUI(
             self.user,

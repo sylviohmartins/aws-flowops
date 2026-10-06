@@ -1,0 +1,136 @@
+{
+  "id": "visual-authoring-completion",
+  "phase": "REVIEW",
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "description": "Fechar ondas 0-2: parâmetros atômicos, referências e revisões sem perda",
+      "status": "DONE",
+      "evidence": [
+        "Regressões de histórico, bindings de parâmetro e seleção restaurada cobertas por testes; undo/redo preserva visão e nó selecionado."
+      ]
+    },
+    {
+      "id": "REQ-002",
+      "description": "Onda 3: criação por objetivo, assistente delimitado, revisão contextual e jornada completa por teclado",
+      "status": "DONE",
+      "evidence": [
+        "Goal wizard, assistente delimitado e revisão contextual estão cobertos por testes e browsers.",
+        "Authoring-completion passou com comboboxes confirmados somente por teclado (Tab/Shift+Tab, Enter, Space e texto), sem pointer interaction."
+      ]
+    },
+    {
+      "id": "REQ-003",
+      "description": "Onda 4: formulários para ações frequentes, ajuda operacional e navegação por intenção",
+      "status": "DONE",
+      "evidence": [
+        "Formulários tipados, catálogo de ações, resource picker, guia operacional e navegação por áreas estão implementados e cobertos pela suíte local."
+      ]
+    },
+    {
+      "id": "REQ-004",
+      "description": "Onda 5: reformulação próxima ao builder, componente React delimitado, edição contextual, vínculos e histórico reversível com contrato versionado",
+      "status": "DONE",
+      "evidence": [
+        "Frontend React/@xyflow integrado; testes JS 3/3, build reproduzível e npm audit com 0 vulnerabilidades.",
+        "Aceitação responsiva React registrada para 1440/1024/390 e jornada browser completa passou."
+      ]
+    },
+    {
+      "id": "REQ-005",
+      "description": "Comprovar AC01-AC18, build, segurança, auditoria e CI da árvore entregue",
+      "status": "DONE",
+      "evidence": [
+        "Final consolidated local gate: 358 passed, 197 subtests passed, 0 skipped, 0 failed, coverage 96.44%.",
+        "All four browser gates passed locally and under exact-tree GitHub Actions.",
+        "Exact candidate SHA 14fcb38716bd6fcfe58bbde54f747b80c9761474 passed Quality push run 207 and pull_request run 208."
+      ]
+    },
+    {
+      "id": "REQ-006",
+      "description": "Reconciliar plano, guia e estado por critério",
+      "status": "DONE",
+      "evidence": [
+        "docs/UX_VISUAL_AUTHORING_PLAN.md reconciliado em 27/09/2026 com matriz AC01-AC18 e estado atual.",
+        "ADR 013 e task-runs distinguem validação automatizada concluída de CI remota e estudo humano pendentes."
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "close-authoring-plan",
+      "wave": 1,
+      "status": "DONE",
+      "requirementIds": [
+        "REQ-001",
+        "REQ-002",
+        "REQ-003",
+        "REQ-004",
+        "REQ-005",
+        "REQ-006"
+      ],
+      "files": [
+        "flowops/streamlit/",
+        "frontend/flow-editor/",
+        "tests/",
+        "scripts/browser_authoring.py",
+        "docs/",
+        ".agents/runs/visual-authoring-completion.json"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "name": "pytest-consolidated",
+      "status": "PASS",
+      "evidence": "358 passed, 197 subtests passed, 0 skipped, coverage 96.44%, exit code 0"
+    },
+    {
+      "name": "authoring-browser",
+      "status": "PASS",
+      "evidence": "Acceptance geral, local lab, workspace e authoring-completion passaram; authoring-completion confirmou seleção de combobox somente por teclado."
+    },
+    {
+      "name": "react",
+      "status": "PASS",
+      "evidence": "3/3 tests, build and reproducibility check passed; responsive evidence 1440/1024/390"
+    },
+    {
+      "name": "static-security",
+      "status": "PASS",
+      "evidence": "Ruff and format clean; mypy 70 source files clean; Bandit 0 issues"
+    },
+    {
+      "name": "dependency-audits",
+      "status": "PASS",
+      "evidence": "npm audit 0 vulnerabilities; isolated pip-audit reported no known vulnerabilities"
+    },
+    {
+      "name": "exact-tree-remote-ci",
+      "status": "PASS",
+      "evidence": "SHA 14fcb38716bd6fcfe58bbde54f747b80c9761474: Quality push run 207=success; Quality pull_request run 208=success."
+    }
+  ],
+  "failures": [],
+  "checkpoint": {
+    "branch": "codex/code-defined-tours",
+    "nextAction": "Technical visual-authoring delivery is complete and promotion-ready after exact-tree CI. The human usability study remains open in .agents/runs/visual-authoring-human-study.json and must be completed as a separate post-merge UX workstream.",
+    "decisions": [
+      "Automated AC01-AC18 and exact-tree remote CI are complete and green.",
+      "The 10-person human usability study is deliberately separated from the technical promotion gate; it is not claimed complete.",
+      "Automated Desktop Commander pilots are technical rehearsals only and do not count as human participants.",
+      "No real AWS mutation, production migration or deployment was used for validation."
+    ],
+    "impacts": {
+      "AWS": "Demo/Moto only during validation; no real AWS mutation",
+      "persistence": "Existing Runbook contract retained; PostgreSQL integration now rerunnable",
+      "security": "RBAC/scope preserved; Bandit and dependency audits green",
+      "deployment": "Local build only; no production deployment",
+      "rollback": "No migration introduced by authoring/discovery changes"
+    },
+    "risks": [
+      "The post-merge human usability study may reveal workflow improvements that require follow-up changes.",
+      "Participant sessions require real people and consent; no personal data should be stored in the repository."
+    ]
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "id": "visual-authoring-human-study",
+  "phase": "VALIDATE",
+  "requirements": [
+    {
+      "id": "REQ-007",
+      "description": "Executar e analisar avaliação com 5 participantes técnicos e 5 não técnicos reais",
+      "status": "BLOCKED",
+      "reason": "Requires ten real participant sessions. Automated browser/agent/Desktop Commander pilots explicitly do not count as participants.",
+      "evidence": [
+        "docs/UX_AUTHORING_USER_STUDY.md defines the approved protocol and requires real participants.",
+        "Ten automated Desktop Commander pilots passed in DEMO with zero real AWS calls, but are classified AUTOMATED_PILOT_NOT_HUMAN.",
+        "A local anonymized collection kit exists under ignored .build-check/user-study for T01-T05 and N01-N05."
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "run-human-usability-study",
+      "wave": 1,
+      "status": "BLOCKED",
+      "requirementIds": [
+        "REQ-007"
+      ],
+      "files": [
+        "docs/UX_AUTHORING_USER_STUDY.md",
+        ".agents/runs/visual-authoring-human-study.json"
+      ],
+      "reason": "Real participant sessions are externally required before this workstream can close."
+    }
+  ],
+  "checks": [
+    {
+      "name": "technical-candidate",
+      "status": "PASS",
+      "evidence": "Technical candidate 14fcb38716bd6fcfe58bbde54f747b80c9761474 passed Quality push run 207 and pull_request run 208."
+    },
+    {
+      "name": "automated-pilot-rehearsal",
+      "status": "PASS",
+      "evidence": "10/10 automated DEMO pilot journeys passed; average 69.43s; AWS_real_calls=0; pilots do not count as humans."
+    }
+  ],
+  "failures": [],
+  "checkpoint": {
+    "branch": "codex/code-defined-tours",
+    "nextAction": "Run docs/UX_AUTHORING_USER_STUDY.md with real T01-T05 and N01-N05 participants, record anonymized observations, address any blocking UX findings, and only then close this separate human-study workstream.",
+    "decisions": [
+      "This workstream is intentionally post-merge and does not block the already-green technical promotion gate.",
+      "Automated pilots must never be reported as human usability results.",
+      "Use DEMO only and keep participant data anonymized."
+    ],
+    "risks": [
+      "Human findings may require follow-up UX changes.",
+      "No human result exists until real sessions are completed."
+    ]
+  }
+}

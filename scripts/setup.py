@@ -68,12 +68,19 @@ def local_services(*, stop: bool = False) -> None:
             flush=True,
         )
         return
-    print("Baixando runtime da Lambda (primeira execucao pode demorar)...", flush=True)
-    subprocess.run(
-        ["docker", "pull", "ghcr.io/shogo82148/lambda-python:3.12"],
-        check=True,
-        cwd=ROOT,
-    )
+    lambda_runtime = "ghcr.io/shogo82148/lambda-python:3.12"
+    try:
+        subprocess.run(
+            ["docker", "image", "inspect", lambda_runtime],
+            check=True,
+            cwd=ROOT,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        print("Runtime da Lambda encontrado no cache local.", flush=True)
+    except subprocess.CalledProcessError:
+        print("Baixando runtime da Lambda (primeira execucao pode demorar)...", flush=True)
+        subprocess.run(["docker", "pull", lambda_runtime], check=True, cwd=ROOT)
     subprocess.run([*compose, "up", "-d", "--wait", "--wait-timeout", "120"], check=True, cwd=ROOT)
 
 
@@ -133,6 +140,19 @@ def main(argv: list[str] | None = None) -> int:
             if args.local or args.postgres or os.getenv("FLOWOPS_DATABASE_URL"):
                 extras.append("postgres")
             target = str(ROOT) + (f"[{','.join(extras)}]" if extras else "")
+            print("Atualizando instalador Python seguro...", flush=True)
+            subprocess.run(
+                [
+                    str(python),
+                    "-m",
+                    "pip",
+                    "install",
+                    "--disable-pip-version-check",
+                    "pip>=26.2.1",
+                ],
+                check=True,
+                cwd=ROOT,
+            )
             print("Instalando dependencias do projeto...", flush=True)
             subprocess.run(
                 [str(python), "-m", "pip", "install", "--disable-pip-version-check", "-e", target],
