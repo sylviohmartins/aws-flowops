@@ -1,0 +1,88 @@
+{
+  "id": "visual-authoring-synthetic-panel",
+  "phase": "VALIDATE",
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "description": "Executar a jornada completa atual de autoria visual em DEMO sem AWS real",
+      "status": "DONE",
+      "evidence": [
+        "Local 2026-10-07: python -m scripts.browser_workspace --authoring-completion -> PASS.",
+        "Promoted main c88711fbc3431957c951ca66d153b14ff751041d: Quality push run #218 -> SUCCESS."
+      ]
+    },
+    {
+      "id": "REQ-002",
+      "description": "Construir dez personas sintéticas cobrindo do perfil iniciante/estagiário ao especialista",
+      "status": "DONE",
+      "evidence": [
+        "docs/UX_AUTHORING_SYNTHETIC_PANEL.md defines S-T01..S-T05 and S-N01..S-N05 with distinct experience, AWS familiarity and risk behavior."
+      ]
+    },
+    {
+      "id": "REQ-003",
+      "description": "Executar walkthrough cognitivo sintético das nove tarefas do protocolo e registrar riscos",
+      "status": "DONE",
+      "evidence": [
+        "docs/UX_AUTHORING_SYNTHETIC_PANEL.md records task-by-task observed browser evidence and synthetic cognitive risk.",
+        "Existing 10/10 automated pilots remain classified AUTOMATED_PILOT_NOT_HUMAN and are used only for deterministic reachability."
+      ]
+    },
+    {
+      "id": "REQ-004",
+      "description": "Preservar proveniência e não apresentar agentes como participantes humanos",
+      "status": "DONE",
+      "evidence": [
+        "Synthetic report explicitly separates observed automation from inferred persona behavior.",
+        "No T01-T05/N01-N05 sheet was filled as a real participant session."
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "run-current-e2e",
+      "wave": 1,
+      "status": "DONE",
+      "requirementIds": ["REQ-001"],
+      "files": ["scripts/browser_workspace.py", "scripts/browser_authoring.py"]
+    },
+    {
+      "id": "run-synthetic-panel",
+      "wave": 2,
+      "status": "DONE",
+      "requirementIds": ["REQ-002", "REQ-003", "REQ-004"],
+      "files": ["docs/UX_AUTHORING_SYNTHETIC_PANEL.md", ".agents/runs/visual-authoring-synthetic-panel.json"]
+    }
+  ],
+  "checks": [
+    {
+      "name": "promoted-main-ci",
+      "status": "PASS",
+      "evidence": "Quality push run #218 for c88711fbc3431957c951ca66d153b14ff751041d completed successfully, including workspace usability and visual authoring browser acceptance."
+    },
+    {
+      "name": "local-authoring-completion",
+      "status": "PASS",
+      "evidence": "2026-10-07 local DEMO authoring-completion journey completed with exit code 0 and Workspace browser acceptance PASS."
+    },
+    {
+      "name": "evidence-provenance",
+      "status": "PASS",
+      "evidence": "Synthetic findings are labeled synthetic/inferred; automated pilots remain explicitly non-human."
+    }
+  ],
+  "failures": [],
+  "checkpoint": {
+    "branch": "chore/synthetic-usability-panel",
+    "nextAction": "No technical action is required for the synthetic panel. Revisit the retained human protocol only if a future product phase requires empirical human usability evidence.",
+    "decisions": [
+      "Synthetic personas supplement but never impersonate real participants.",
+      "Human usability rates and human time-on-task are not claimed from this panel.",
+      "No AWS real calls are allowed in this validation."
+    ],
+    "risks": [
+      "Spontaneous comprehension by real users remains empirically unmeasured.",
+      "Non-technical personas may still need help with AWS terminology despite current inline explanations."
+    ]
+  }
+}

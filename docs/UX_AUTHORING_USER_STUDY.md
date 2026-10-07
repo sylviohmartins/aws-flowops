@@ -1,6 +1,6 @@
 # Avaliação da autoria visual com participantes
 
-Estado: roteiro preparado em 16/09/2026. O responsável confirmou disponibilidade de participantes; ainda não há resultados coletados. Os testes automatizados não contam como participantes.
+Estado: protocolo empírico preservado, porém dispensado para o fechamento da fase atual por decisão explícita do proprietário do projeto em 07/10/2026. Não foram coletados resultados humanos e os testes automatizados/personas sintéticas continuam não contando como participantes. A avaliação sintética complementar está em `docs/UX_AUTHORING_SYNTHETIC_PANEL.md`; este protocolo deve ser reaberto se uma fase futura exigir evidência humana real.
 
 ## Preparação
 

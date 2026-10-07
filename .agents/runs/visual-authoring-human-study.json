@@ -5,12 +5,15 @@
     {
       "id": "REQ-007",
       "description": "Executar e analisar avaliação com 5 participantes técnicos e 5 não técnicos reais",
-      "status": "BLOCKED",
-      "reason": "Requires ten real participant sessions. Automated browser/agent/Desktop Commander pilots explicitly do not count as participants.",
+      "status": "REJECTED_WITH_REASON",
+      "reason": "Em 07/10/2026, o proprietário do projeto dispensou explicitamente a execução com pessoas reais para o fechamento desta fase e aceitou avaliação sintética/automatizada como evidência complementar. O requisito não é marcado DONE e nenhuma persona sintética é apresentada como participante humano.",
       "evidence": [
-        "docs/UX_AUTHORING_USER_STUDY.md defines the approved protocol and requires real participants.",
-        "Ten automated Desktop Commander pilots passed in DEMO with zero real AWS calls, but are classified AUTOMATED_PILOT_NOT_HUMAN.",
-        "A local anonymized collection kit exists under ignored .build-check/user-study for T01-T05 and N01-N05."
+        "docs/UX_AUTHORING_USER_STUDY.md remains the retained protocol for any future empirical human study.",
+        "docs/UX_AUTHORING_SYNTHETIC_PANEL.md records the owner-approved synthetic substitute and its limitations.",
+        ".agents/runs/visual-authoring-synthetic-panel.json records provenance-safe synthetic validation.",
+        "Ten previous automated Desktop Commander pilots passed in DEMO with zero real AWS calls and remain classified AUTOMATED_PILOT_NOT_HUMAN.",
+        "Local authoring-completion on 07/10/2026 passed against the current promoted tree.",
+        "Promoted main c88711fbc3431957c951ca66d153b14ff751041d passed Quality push run #218."
       ]
     }
   ],
@@ -18,41 +21,52 @@
     {
       "id": "run-human-usability-study",
       "wave": 1,
-      "status": "BLOCKED",
-      "requirementIds": [
-        "REQ-007"
-      ],
+      "status": "NOT_APPLICABLE",
+      "requirementIds": ["REQ-007"],
       "files": [
         "docs/UX_AUTHORING_USER_STUDY.md",
-        ".agents/runs/visual-authoring-human-study.json"
+        "docs/UX_AUTHORING_SYNTHETIC_PANEL.md",
+        ".agents/runs/visual-authoring-human-study.json",
+        ".agents/runs/visual-authoring-synthetic-panel.json"
       ],
-      "reason": "Real participant sessions are externally required before this workstream can close."
+      "reason": "Owner waived real participant execution for the current phase. The protocol is retained for future empirical validation."
     }
   ],
   "checks": [
     {
       "name": "technical-candidate",
       "status": "PASS",
-      "evidence": "Technical candidate 14fcb38716bd6fcfe58bbde54f747b80c9761474 passed Quality push run 207 and pull_request run 208."
+      "evidence": "Promoted main c88711fbc3431957c951ca66d153b14ff751041d passed Quality push run #218, including workspace usability and visual authoring browser acceptance."
     },
     {
       "name": "automated-pilot-rehearsal",
       "status": "PASS",
-      "evidence": "10/10 automated DEMO pilot journeys passed; average 69.43s; AWS_real_calls=0; pilots do not count as humans."
+      "evidence": "10/10 automated DEMO pilot journeys passed; average 69.43s; AWS_real_calls=0; pilots remain explicitly non-human."
+    },
+    {
+      "name": "synthetic-panel",
+      "status": "PASS",
+      "evidence": "Ten differentiated synthetic personas were evaluated in docs/UX_AUTHORING_SYNTHETIC_PANEL.md; findings are labeled inferred/synthetic and are not used as human usability measurements."
+    },
+    {
+      "name": "provenance-integrity",
+      "status": "PASS",
+      "evidence": "No real-participant sheet was fabricated or populated from agent output; the human requirement is closed by explicit rejection/waiver, not false completion."
     }
   ],
   "failures": [],
   "checkpoint": {
-    "branch": "codex/code-defined-tours",
-    "nextAction": "Run docs/UX_AUTHORING_USER_STUDY.md with real T01-T05 and N01-N05 participants, record anonymized observations, address any blocking UX findings, and only then close this separate human-study workstream.",
+    "branch": "chore/synthetic-usability-panel",
+    "nextAction": "Current phase may close. If empirical human usability becomes a requirement in a later phase, reopen docs/UX_AUTHORING_USER_STUDY.md and execute T01-T05/N01-N05 with real participants.",
     "decisions": [
-      "This workstream is intentionally post-merge and does not block the already-green technical promotion gate.",
-      "Automated pilots must never be reported as human usability results.",
-      "Use DEMO only and keep participant data anonymized."
+      "The project owner explicitly waived the ten-real-participant requirement for this phase on 07/10/2026.",
+      "The waiver is represented as REJECTED_WITH_REASON, never as DONE.",
+      "Synthetic personas and automated pilots must never be reported as human usability results.",
+      "Use DEMO only and keep any future participant data anonymized."
     ],
     "risks": [
-      "Human findings may require follow-up UX changes.",
-      "No human result exists until real sessions are completed."
+      "Human discoverability and comprehension remain empirically unmeasured.",
+      "A future production-facing phase may choose to reinstate the real-participant requirement."
     ]
   }
 }
