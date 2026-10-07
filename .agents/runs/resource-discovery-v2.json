@@ -1,6 +1,6 @@
 {
   "id": "resource-discovery-v2",
-  "phase": "REVIEW",
+  "phase": "PROMOTED",
   "requirements": [
     {
       "id": "REQ-001",
@@ -133,18 +133,29 @@
   ],
   "failures": [],
   "checkpoint": {
-    "branch": "codex/code-defined-tours",
-    "nextAction": "Keep the validated dirty tree unpromoted. If publication is authorized, create a controlled candidate commit, run exact-tree CI, review current main again and only then make a promotion decision.",
+    "branch": "main",
+    "nextAction": "Promoted in main. Reopen Resource Discovery v2 only if new requirements or regression evidence appears.",
     "decisions": [
       "No real AWS account calls or mutations were used for validation; botocore models, demo fakes and Moto/Docker provide deterministic coverage.",
       "Discovery and inspection stay explicit read-only user actions; applying a discovered value remains separate.",
       "DynamoDB observed fields are sampled metadata, never advertised as relational schema.",
       "Persistent PostgreSQL and Moto integration tests were made rerunnable without weakening production idempotency or seed-preservation semantics.",
-      "Do not promote or deploy this dirty tree without explicit authorization."
+      "Promotion completed on main SHA 98073e48d25e0ed014facd363ff9e17f2517d5a7; exact-tree Quality run #211 passed."
     ],
     "risks": [
       "Exact candidate-tree GitHub CI still requires a published commit/branch and has not been run for this dirty working tree.",
       "Human usability study belongs to the broader visual-authoring completion run and remains outside Resource Discovery v2."
-    ]
+    ],
+    "reconciledAt": "2026-10-06",
+    "promotionEvidence": {
+      "sha": "98073e48d25e0ed014facd363ff9e17f2517d5a7",
+      "tree": "92d086a2c333d2653529b97bb92a6cf89b04d1ba",
+      "qualityRun": 211,
+      "qualityRunId": 37416724277,
+      "result": "SUCCESS"
+    },
+    "lastReconciled": "2026-10-06",
+    "completionGate": "Post-promotion reconciliation on 2026-10-06: completion_gate.py --final returns PASS for this run. Promoted main SHA 98073e48d25e0ed014facd363ff9e17f2517d5a7 passed GitHub Actions Quality run #211.",
+    "reconciliationNote": "Historical BLOCKED/NOT_RUN evidence is retained where useful, but is superseded as current state by the promoted-tree validation recorded in promotionEvidence."
   }
 }

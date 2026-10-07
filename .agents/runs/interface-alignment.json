@@ -1,38 +1,174 @@
 {
   "id": "interface-alignment",
-  "phase": "PROMOTION_DECISION",
+  "phase": "PROMOTED",
   "requirements": [
-    {"id":"REQ-001","description":"Evaluate a design-alignment resource such as Impeccable","status":"DONE","evidence":["Official impeccable.style layout/polish/hooks documentation and pbakaus/impeccable Apache-2.0 repository inspected; ADAPT guidance only, no installer/hooks/extension executed"]},
-    {"id":"REQ-002","description":"Consistent scoped alignment, spacing and responsive layout across all ten pages and the node dialog","status":"DONE","evidence":["workspace.css, scoped FlowOpsPage/navigation/dialog containers; shared seven-field history grid and editor/catalog filter rows","browser-artifacts/workspace/layout/measurements.json: 33 records, zero failures at 1440/1024/390 px; desktop/tablet/mobile screenshots reviewed","Final 8510 preview verified in browser: pt-BR, grid display, seven history cells, no horizontal overflow or exceptions"]},
-    {"id":"REQ-003","description":"Executable layout regressions and design conventions for future changes","status":"DONE","evidence":["tests/test_layout.py: ten pages do not change draft, published snapshot, events or execution history","scripts/browser_layout.py: layout measurement, negative misalignment fixture, host CSS isolation, three breakpoints and node dialog","Full Chromium query/map/approval/Lambda/exports/failure journey plus localization and 33 layout checks PASS","DESIGN.md and docs/INTERFACE_DESIGN.md document conventions, vetted adaptation, limitations and rollback"]}
+    {
+      "id": "REQ-001",
+      "description": "Evaluate a design-alignment resource such as Impeccable",
+      "status": "DONE",
+      "evidence": [
+        "Official impeccable.style layout/polish/hooks documentation and pbakaus/impeccable Apache-2.0 repository inspected; ADAPT guidance only, no installer/hooks/extension executed"
+      ]
+    },
+    {
+      "id": "REQ-002",
+      "description": "Consistent scoped alignment, spacing and responsive layout across all ten pages and the node dialog",
+      "status": "DONE",
+      "evidence": [
+        "workspace.css, scoped FlowOpsPage/navigation/dialog containers; shared seven-field history grid and editor/catalog filter rows",
+        "browser-artifacts/workspace/layout/measurements.json: 33 records, zero failures at 1440/1024/390 px; desktop/tablet/mobile screenshots reviewed",
+        "Final 8510 preview verified in browser: pt-BR, grid display, seven history cells, no horizontal overflow or exceptions"
+      ]
+    },
+    {
+      "id": "REQ-003",
+      "description": "Executable layout regressions and design conventions for future changes",
+      "status": "DONE",
+      "evidence": [
+        "tests/test_layout.py: ten pages do not change draft, published snapshot, events or execution history",
+        "scripts/browser_layout.py: layout measurement, negative misalignment fixture, host CSS isolation, three breakpoints and node dialog",
+        "Full Chromium query/map/approval/Lambda/exports/failure journey plus localization and 33 layout checks PASS",
+        "DESIGN.md and docs/INTERFACE_DESIGN.md document conventions, vetted adaptation, limitations and rollback"
+      ]
+    }
   ],
   "tasks": [
-    {"id":"layout","wave":1,"status":"DONE","requirementIds":["REQ-001","REQ-002","REQ-003"],"files":["flowops/streamlit/layout.py","flowops/streamlit/workspace.css","flowops/streamlit/navigation.py","flowops/streamlit/integration.py","flowops/streamlit/ui.py","flowops/streamlit/workspace.py","flowops/streamlit/action_catalog.py","flowops/streamlit/node_editor.py","tests/test_layout.py","tests/test_streamlit_integration_coverage.py","tests/test_ui_presenter_coverage.py","scripts/browser_layout.py","scripts/browser_workspace.py","scripts/browser_acceptance.py",".github/workflows/quality.yml","docs/INTERFACE_DESIGN.md","DESIGN.md","README.md","pyproject.toml"]}
+    {
+      "id": "layout",
+      "wave": 1,
+      "status": "DONE",
+      "requirementIds": [
+        "REQ-001",
+        "REQ-002",
+        "REQ-003"
+      ],
+      "files": [
+        "flowops/streamlit/layout.py",
+        "flowops/streamlit/workspace.css",
+        "flowops/streamlit/navigation.py",
+        "flowops/streamlit/integration.py",
+        "flowops/streamlit/ui.py",
+        "flowops/streamlit/workspace.py",
+        "flowops/streamlit/action_catalog.py",
+        "flowops/streamlit/node_editor.py",
+        "tests/test_layout.py",
+        "tests/test_streamlit_integration_coverage.py",
+        "tests/test_ui_presenter_coverage.py",
+        "scripts/browser_layout.py",
+        "scripts/browser_workspace.py",
+        "scripts/browser_acceptance.py",
+        ".github/workflows/quality.yml",
+        "docs/INTERFACE_DESIGN.md",
+        "DESIGN.md",
+        "README.md",
+        "pyproject.toml"
+      ]
+    }
   ],
   "checks": [
-    {"name":"focused tests","required":true,"status":"PASSED","evidence":"tests/test_layout.py: 2 passed (ten pages, unchanged draft/published/history/events); integration/presenter: 9 passed"},
-    {"name":"ten-page responsive browser measurements","required":true,"status":"PASSED","evidence":"alignment-browser.log and alignment-workspace.log PASS; workspace/layout/measurements.json: 33 checks, zero failures; negative geometry and host-isolation fixtures passed"},
-    {"name":"functional Chromium journeys","required":true,"status":"PASSED","evidence":"alignment-legacy.log/result.json: startup/create/configure/drag/connect/disconnect/map/publish/execute/history/replay PASS; alignment-workspace.log/workspace/result.json: query/map/manual approval/Lambda/JSON/CSV/failure/pt-BR/layout PASS"},
-    {"name":"local quality checks","required":true,"status":"PASSED","evidence":"alignment-regression.log: 246 passed, 5 skipped, 96.29%; mypy 57 sources; final Ruff format/check: 225 formatted, no lint findings; Bandit 7916 lines zero findings; instructions validator passed; alignment-build.log sdist/wheel passed, packaged workspace.css verified byte-exact"},
-    {"name":"review and whitespace","required":true,"status":"PASSED","evidence":"Reviewed scoped CSS, native controls, keyboard/reading order, dialog, embedding host isolation, package-data and tests; no engine/provider/persistence/authorization changes; git diff --check passed"},
-    {"name":"dependency audit","required":true,"status":"BLOCKED","evidence":"alignment-audit.log: PyPI CERTIFICATE_VERIFY_FAILED (local issuer certificate unavailable). No TLS bypass."},
-    {"name":"exact-tree GitHub CI","required":true,"status":"NOT_RUN","evidence":"No commit, push or promotion requested/performed; existing HEAD CI cannot validate dirty tree"},
-    {"name":"opt-in integration and installation","required":false,"status":"NOT_RUN","evidence":"Five pytest opt-in skips: Docker local AWS, PostgreSQL queue, two PostgreSQL cases, setup installation smoke. No engine/provider/schema dependency changes in alignment scope."}
+    {
+      "name": "focused tests",
+      "required": true,
+      "status": "PASSED",
+      "evidence": "tests/test_layout.py: 2 passed (ten pages, unchanged draft/published/history/events); integration/presenter: 9 passed"
+    },
+    {
+      "name": "ten-page responsive browser measurements",
+      "required": true,
+      "status": "PASSED",
+      "evidence": "alignment-browser.log and alignment-workspace.log PASS; workspace/layout/measurements.json: 33 checks, zero failures; negative geometry and host-isolation fixtures passed"
+    },
+    {
+      "name": "functional Chromium journeys",
+      "required": true,
+      "status": "PASSED",
+      "evidence": "alignment-legacy.log/result.json: startup/create/configure/drag/connect/disconnect/map/publish/execute/history/replay PASS; alignment-workspace.log/workspace/result.json: query/map/manual approval/Lambda/JSON/CSV/failure/pt-BR/layout PASS"
+    },
+    {
+      "name": "local quality checks",
+      "required": true,
+      "status": "PASSED",
+      "evidence": "alignment-regression.log: 246 passed, 5 skipped, 96.29%; mypy 57 sources; final Ruff format/check: 225 formatted, no lint findings; Bandit 7916 lines zero findings; instructions validator passed; alignment-build.log sdist/wheel passed, packaged workspace.css verified byte-exact"
+    },
+    {
+      "name": "review and whitespace",
+      "required": true,
+      "status": "PASSED",
+      "evidence": "Reviewed scoped CSS, native controls, keyboard/reading order, dialog, embedding host isolation, package-data and tests; no engine/provider/persistence/authorization changes; git diff --check passed"
+    },
+    {
+      "name": "dependency audit",
+      "required": true,
+      "status": "PASS",
+      "evidence": "Historical local TLS/network blocker superseded by exact promoted-tree CI: pip-audit passed on main SHA 98073e48d25e0ed014facd363ff9e17f2517d5a7 in Quality run #211. Historical evidence: alignment-audit.log: PyPI CERTIFICATE_VERIFY_FAILED (local issuer certificate unavailable). No TLS bypass."
+    },
+    {
+      "name": "exact-tree GitHub CI",
+      "required": true,
+      "status": "PASS",
+      "evidence": "Post-promotion reconciliation 2026-10-06: main SHA 98073e48d25e0ed014facd363ff9e17f2517d5a7 (tree 92d086a2c333d2653529b97bb92a6cf89b04d1ba) passed GitHub Actions Quality push main run #211 (37416724277). The run passed agent-engineering validation, Ubuntu/Windows setup, Local AWS lab with Docker Lambda, PostgreSQL-backed tests, full pytest+coverage, Ruff, mypy, Bandit, pip-audit, package build and all browser gates. Historical evidence: No commit, push or promotion requested/performed; existing HEAD CI cannot validate dirty tree"
+    },
+    {
+      "name": "opt-in integration and installation",
+      "required": false,
+      "status": "PASS",
+      "evidence": "Current promoted-tree CI supersedes the historical opt-in skips: Quality run #211 on 98073e48d25e0ed014facd363ff9e17f2517d5a7 ran Ubuntu/Windows setup, PostgreSQL service-backed tests, FLOWOPS_TEST_LOCAL_AWS=1 and the Local AWS lab with Docker Lambda successfully. Historical evidence: Five pytest opt-in skips: Docker local AWS, PostgreSQL queue, two PostgreSQL cases, setup installation smoke. No engine/provider/schema dependency changes in alignment scope."
+    }
   ],
   "failures": [
-    {"status":"RESOLVED","summary":"AppTest doubles updated for scoped containers; published draft baseline captured after publish; grid test restricted to column children."},
-    {"status":"RESOLVED","summary":"Excluded genuinely clipped native hidden-dateinput helpers from geometry, without hiding any visible overflow."},
-    {"status":"RESOLVED","summary":"Responsive test waits for sidebar aria-expanded and completed closing geometry, rather than racing resize animation."},
-    {"status":"RESOLVED","summary":"Browser startup waits for existing server acknowledgement; checkpoint test awaits the server-rendered query download key rather than a still-mounted prior-node button. Exact filename and payload assertions preserved; both full journeys passed."},
-    {"status":"BLOCKED","summary":"Dependency audit cannot validate PyPI TLS certificate; verification was not bypassed."}
+    {
+      "status": "RESOLVED",
+      "summary": "AppTest doubles updated for scoped containers; published draft baseline captured after publish; grid test restricted to column children."
+    },
+    {
+      "status": "RESOLVED",
+      "summary": "Excluded genuinely clipped native hidden-dateinput helpers from geometry, without hiding any visible overflow."
+    },
+    {
+      "status": "RESOLVED",
+      "summary": "Responsive test waits for sidebar aria-expanded and completed closing geometry, rather than racing resize animation."
+    },
+    {
+      "status": "RESOLVED",
+      "summary": "Browser startup waits for existing server acknowledgement; checkpoint test awaits the server-rendered query download key rather than a still-mounted prior-node button. Exact filename and payload assertions preserved; both full journeys passed."
+    },
+    {
+      "status": "RESOLVED",
+      "summary": "Dependency audit cannot validate PyPI TLS certificate; verification was not bypassed. Resolved by promoted-tree Quality run #211 on 98073e48d25e0ed014facd363ff9e17f2517d5a7; dependency audit and exact-tree CI are now green."
+    }
   ],
   "checkpoint": {
-    "branch":"codex/code-defined-tours","base":"8450725","lastReconciled":"2026-09-13",
-    "nextAction":"Alignment implementation and local validation are complete. Restore trusted dependency-audit connectivity and obtain explicit remote publication direction before exact-tree CI/promotion. Do not redo completed UI work or alter stored data.",
-    "completionGate":"Executed --final: FAIL only because dependency audit is BLOCKED and exact-tree GitHub CI is NOT_RUN. All requested layout requirements and local functional checks passed; no production-readiness claim.",
-    "preview":"Restarted only verified 8510 preview child process; launcher PID 53756, same browser-artifacts/workspace/preview.db preserved. Browser reloaded and viewport override reset; final dark-theme history screenshot verified.",
-    "decisions":["Preserve existing dirty changes and databases","No third-party installer or persistent agent hooks","Use Impeccable layout/polish as design reference, native Streamlit/CSS as implementation, browser geometry as regression evidence","Keep theme, Portuguese copy and operation semantics"],
-    "impacts":{"AWS":"none","persistence":"no migration or history changes","security":"no permission/approval/provider changes","deployment":"local UI only, no remote publication","rollback":"revert only alignment hunks and packaged CSS; preserve preceding changes and DB"},
-    "risks":["Streamlit test-id selectors require regression on upgrades","Exact-tree CI needs publication not requested; dependency audit connectivity was previously unavailable"]
+    "branch": "main",
+    "base": "8450725",
+    "lastReconciled": "2026-10-06",
+    "nextAction": "Promoted in main with exact-tree Quality run #211 green. No technical promotion blocker remains; only the separately tracked real-participant usability study may remain open where applicable.",
+    "completionGate": "Post-promotion reconciliation on 2026-10-06: completion_gate.py --final returns PASS for this run. Promoted main SHA 98073e48d25e0ed014facd363ff9e17f2517d5a7 passed GitHub Actions Quality run #211.",
+    "preview": "Restarted only verified 8510 preview child process; launcher PID 53756, same browser-artifacts/workspace/preview.db preserved. Browser reloaded and viewport override reset; final dark-theme history screenshot verified.",
+    "decisions": [
+      "Preserve existing dirty changes and databases",
+      "No third-party installer or persistent agent hooks",
+      "Use Impeccable layout/polish as design reference, native Streamlit/CSS as implementation, browser geometry as regression evidence",
+      "Keep theme, Portuguese copy and operation semantics"
+    ],
+    "impacts": {
+      "AWS": "none",
+      "persistence": "no migration or history changes",
+      "security": "no permission/approval/provider changes",
+      "deployment": "local UI only, no remote publication",
+      "rollback": "revert only alignment hunks and packaged CSS; preserve preceding changes and DB"
+    },
+    "risks": [
+      "Streamlit test-id selectors require regression on upgrades",
+      "Exact-tree CI needs publication not requested; dependency audit connectivity was previously unavailable"
+    ],
+    "reconciledAt": "2026-10-06",
+    "promotionEvidence": {
+      "sha": "98073e48d25e0ed014facd363ff9e17f2517d5a7",
+      "tree": "92d086a2c333d2653529b97bb92a6cf89b04d1ba",
+      "qualityRun": 211,
+      "qualityRunId": 37416724277,
+      "result": "SUCCESS"
+    },
+    "reconciliationNote": "Historical BLOCKED/NOT_RUN evidence is retained where useful, but is superseded as current state by the promoted-tree validation recorded in promotionEvidence."
   }
 }

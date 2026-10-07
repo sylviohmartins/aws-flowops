@@ -1,6 +1,6 @@
 {
   "id": "visual-authoring-completion",
-  "phase": "REVIEW",
+  "phase": "PROMOTED",
   "requirements": [
     {
       "id": "REQ-001",
@@ -113,8 +113,8 @@
   ],
   "failures": [],
   "checkpoint": {
-    "branch": "codex/code-defined-tours",
-    "nextAction": "Technical visual-authoring delivery is complete and promotion-ready after exact-tree CI. The human usability study remains open in .agents/runs/visual-authoring-human-study.json and must be completed as a separate post-merge UX workstream.",
+    "branch": "main",
+    "nextAction": "Technical visual authoring is promoted in main. Complete the separate real-participant study in .agents/runs/visual-authoring-human-study.json without representing automated pilots as human evidence.",
     "decisions": [
       "Automated AC01-AC18 and exact-tree remote CI are complete and green.",
       "The 10-person human usability study is deliberately separated from the technical promotion gate; it is not claimed complete.",
@@ -131,6 +131,17 @@
     "risks": [
       "The post-merge human usability study may reveal workflow improvements that require follow-up changes.",
       "Participant sessions require real people and consent; no personal data should be stored in the repository."
-    ]
+    ],
+    "reconciledAt": "2026-10-06",
+    "promotionEvidence": {
+      "sha": "98073e48d25e0ed014facd363ff9e17f2517d5a7",
+      "tree": "92d086a2c333d2653529b97bb92a6cf89b04d1ba",
+      "qualityRun": 211,
+      "qualityRunId": 37416724277,
+      "result": "SUCCESS"
+    },
+    "lastReconciled": "2026-10-06",
+    "completionGate": "Post-promotion reconciliation on 2026-10-06: completion_gate.py --final returns PASS for this run. Promoted main SHA 98073e48d25e0ed014facd363ff9e17f2517d5a7 passed GitHub Actions Quality run #211.",
+    "reconciliationNote": "Historical BLOCKED/NOT_RUN evidence is retained where useful, but is superseded as current state by the promoted-tree validation recorded in promotionEvidence."
   }
 }
