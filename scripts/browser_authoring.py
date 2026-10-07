@@ -117,6 +117,23 @@ def expand(page: Page, label: str) -> None:
     raise AssertionError(f"Expander did not become available/open: {label}") from last_error
 
 
+def advance_until_expander(page: Page, label: str) -> None:
+    """Advance the assistant until the expected step-specific expander is server-rendered."""
+    last_error: Exception | None = None
+    for _ in range(5):
+        settled(page)
+        try:
+            summary = page.locator("summary").filter(has_text=label)
+            if summary.count() and summary.first.is_visible():
+                return
+            button(page, "Próxima etapa")
+            page.wait_for_timeout(200)
+        except (PlaywrightError, AssertionError) as exc:
+            last_error = exc
+            page.wait_for_timeout(250)
+    raise AssertionError(f"Assistant did not reach the step exposing: {label}") from last_error
+
+
 def combo(page: Page, label: str, value: str) -> None:
     target = page.get_by_role("combobox", name=label, exact=True)
     keyboard_focus(page, target)
@@ -166,7 +183,7 @@ def journey(page: Page, url: str, database: Path, artifacts: Path) -> None:
     button(page, "Próxima etapa")  # map
     button(page, "Prévia fictícia da transformação")
     button(page, "Próxima etapa")  # approval
-    button(page, "Próxima etapa")  # lambda
+    advance_until_expander(page, "Criar parâmetro para source")  # lambda
     expand(page, "Criar parâmetro para source")
     text_field(page, "Nome do parâmetro de source", "source_system")
     checkbox = page.get_by_role(
