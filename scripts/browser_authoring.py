@@ -57,24 +57,39 @@ def text_field(page: Page, label: str, value: str) -> None:
 
 
 def radio(page: Page, label: str) -> None:
-    target = page.get_by_role("radio", name=label, exact=True)
     # A Streamlit rerun recreates the radio group and can drop keyboard focus.
-    # Re-focus the current group after every arrow-triggered rerun before
-    # continuing toward a non-adjacent option.
+    # Re-acquire the option on every attempt and only accept navigation after
+    # both the checked state and the server-rendered destination agree.
+    last_error: Exception | None = None
     for _ in range(20):
+        target = page.get_by_role("radio", name=label, exact=True)
+        heading = NAVIGATION_HEADINGS.get(label)
         if target.is_checked():
-            heading = NAVIGATION_HEADINGS.get(label)
-            if heading:
+            if not heading:
+                return
+            try:
                 expect(page.get_by_role("heading", name=heading, exact=True)).to_be_visible(
-                    timeout=30000
+                    timeout=5000
                 )
                 settled(page)
-            return
+                return
+            except (PlaywrightError, AssertionError) as exc:
+                last_error = exc
+                # The browser can mark the radio as checked before Streamlit
+                # acknowledges the change. Move to the previous option, then
+                # let the next loop drive back to the target with a fresh
+                # keyboard event instead of accepting stale client state.
+                group = target.locator("xpath=ancestor::*[@role='radiogroup'][1]")
+                keyboard_focus(page, group)
+                page.keyboard.press("ArrowLeft")
+                settled(page)
+                page.wait_for_timeout(200)
+                continue
         group = target.locator("xpath=ancestor::*[@role='radiogroup'][1]")
         keyboard_focus(page, group)
         page.keyboard.press("ArrowRight")
         settled(page)
-    raise AssertionError(f"Radio option not reachable: {label}")
+    raise AssertionError(f"Radio option not reachable: {label}") from last_error
 
 
 def expand(page: Page, label: str) -> None:
