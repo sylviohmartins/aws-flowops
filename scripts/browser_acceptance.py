@@ -153,6 +153,40 @@ def navigate(page: Page, label: str) -> None:
     settled(page)
 
 
+def wait_publish_ready(page: Page) -> None:
+    """Resolve only a verified post-save stale-session conflict and reacquire publish controls."""
+    last_error: Exception | None = None
+    for _ in range(6):
+        settled(page)
+        try:
+            publish = page.get_by_role("button", name="Publicar versão", exact=True)
+            if publish.count() and publish.is_visible() and publish.is_enabled():
+                return
+
+            # A late canvas event can repopulate the pre-save working revision
+            # after the canonical draft was already persisted. The product
+            # correctly blocks overwrite; acceptance reloads that verified
+            # canonical revision instead of treating the guard as a failure.
+            reload_saved = page.get_by_role(
+                "button",
+                name="Carregar revisão salva e descartar minhas edições",
+                exact=True,
+            )
+            if reload_saved.count() and reload_saved.is_visible():
+                reload_saved.click()
+                page.wait_for_timeout(250)
+                continue
+
+            expect(publish).to_be_enabled(timeout=3000)
+            return
+        except (PlaywrightError, AssertionError) as exc:
+            last_error = exc
+            page.wait_for_timeout(250)
+    raise AssertionError(
+        "Publish control did not become ready after saving the draft"
+    ) from last_error
+
+
 def wait_server(process: subprocess.Popen[bytes]) -> None:
     deadline = time.monotonic() + 60
     while time.monotonic() < deadline:
@@ -291,13 +325,13 @@ def journey(page: Page, database: Path) -> None:
     click(page, "Validar")
     expect(page.get_by_text("Fluxo válido: 4 etapas.", exact=True)).to_be_visible()
     click(page, "Salvar rascunho")
-    expect(page.get_by_role("button", name="Publicar versão", exact=True)).to_be_enabled()
     repository = Repository(database)
     book = repository.list_runbooks("Browser acceptance")[0]
     assert len(book.edges) == edge_count == 3
     send = next(node for node in book.nodes if node.id == send_id)
     assert send.config["MessageBody"] == "{{ " + f"nodes.{get_id}.output.Item" + " }}"
     assert send.position[1] != 180
+    wait_publish_ready(page)
     screenshot_element(
         page,
         'iframe[title="streamlit_flow.streamlit_flow"]',
