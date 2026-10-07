@@ -1,33 +1,150 @@
 {
   "id": "graph-organization",
-  "phase": "PROMOTION_DECISION",
+  "phase": "PROMOTED",
   "requirements": [
-    {"id":"REQ-001","description":"Identify unimplemented improvements and select the best immediate bounded change","status":"DONE","evidence":["Compared existing canvas/ui and previous React Flow analysis: inline custom cards, visual typed mapping, automatic layout and full undo/redo remain pending. Selected reversible automatic layout: immediate readability benefit without replacing the canvas or changing execution semantics.","Official React Flow layout documentation inspected: layout solvers are separate from the renderer. Local wrapper 1.6.1 has no explicit asynchronous layout acknowledgement. Use deterministic server-side DAG layering, no dependency or React frontend migration."]},
-    {"id":"REQ-002","description":"Explicit position-only organization and guarded undo in the editor, with Portuguese help","status":"DONE","evidence":["graph_layout.py: stable DAG layering and one-step geometry-only undo; ui.py explicit organize/undo buttons revalidate runbook.edit; guide documents save/expiration","Preview 8510 browser inspection shows both buttons and an unsaved draft; deliberately not restarted/reloaded to preserve user session"]},
-    {"id":"REQ-003","description":"Verify geometry, session-only changes, immutable publication, read-only controls, stale component safety and document limits","status":"DONE","evidence":["tests/test_graph_layout.py covers disconnected/incomplete drafts, branches/joins, duplicate/unknown IDs, cycles, limits, current config preserved on undo, stale revisions/topology, permission rechecks, AppTest admin/viewer, explicit save and immutable published version","tests/test_canvas_sync.py proves organize/undo cannot be lost to cached iframe values and preserve stable identity on subsequent renders","Chromium organization.json PASS: no overlap/clipping for fixture, exact position restoration, manual drag expires undo, no repository/events/execution writes before save; full workspace journey PASS with 33 responsive measurements, zero failures","docs/WORKSPACE_USABILITY.md records implemented vs pending improvements, selection rationale, actual algorithm, limits, checks, rollback and outstanding risks"]}
+    {
+      "id": "REQ-001",
+      "description": "Identify unimplemented improvements and select the best immediate bounded change",
+      "status": "DONE",
+      "evidence": [
+        "Compared existing canvas/ui and previous React Flow analysis: inline custom cards, visual typed mapping, automatic layout and full undo/redo remain pending. Selected reversible automatic layout: immediate readability benefit without replacing the canvas or changing execution semantics.",
+        "Official React Flow layout documentation inspected: layout solvers are separate from the renderer. Local wrapper 1.6.1 has no explicit asynchronous layout acknowledgement. Use deterministic server-side DAG layering, no dependency or React frontend migration."
+      ]
+    },
+    {
+      "id": "REQ-002",
+      "description": "Explicit position-only organization and guarded undo in the editor, with Portuguese help",
+      "status": "DONE",
+      "evidence": [
+        "graph_layout.py: stable DAG layering and one-step geometry-only undo; ui.py explicit organize/undo buttons revalidate runbook.edit; guide documents save/expiration",
+        "Preview 8510 browser inspection shows both buttons and an unsaved draft; deliberately not restarted/reloaded to preserve user session"
+      ]
+    },
+    {
+      "id": "REQ-003",
+      "description": "Verify geometry, session-only changes, immutable publication, read-only controls, stale component safety and document limits",
+      "status": "DONE",
+      "evidence": [
+        "tests/test_graph_layout.py covers disconnected/incomplete drafts, branches/joins, duplicate/unknown IDs, cycles, limits, current config preserved on undo, stale revisions/topology, permission rechecks, AppTest admin/viewer, explicit save and immutable published version",
+        "tests/test_canvas_sync.py proves organize/undo cannot be lost to cached iframe values and preserve stable identity on subsequent renders",
+        "Chromium organization.json PASS: no overlap/clipping for fixture, exact position restoration, manual drag expires undo, no repository/events/execution writes before save; full workspace journey PASS with 33 responsive measurements, zero failures",
+        "docs/WORKSPACE_USABILITY.md records implemented vs pending improvements, selection rationale, actual algorithm, limits, checks, rollback and outstanding risks"
+      ]
+    }
   ],
-  "tasks":[{"id":"organize","wave":1,"status":"DONE","requirementIds":["REQ-001","REQ-002","REQ-003"],"files":["flowops/streamlit/graph_layout.py","flowops/streamlit/ui.py","flowops/streamlit/canvas.py","flowops/streamlit/operator_guide.md","tests/test_graph_layout.py","tests/test_canvas_sync.py","scripts/browser_workspace.py","docs/WORKSPACE_USABILITY.md"]}],
-  "checks":[
-    {"name":"focused tests and browser layout/undo journey","required":true,"status":"PASSED","evidence":"19 focused tests passed; existing legacy Chromium journey PASS; final uninstrumented full workspace journey PASS (fixture 01d856e2e779438fb8f9bd32f0331991), including no-op feedback, organization, exact undo, manual drag expiry, query/map/manual approval/Lambda/JSON/CSV/failure diagnostic and 33 responsive checks. organization-workspace.log and workspace/result.json PASS."},
-    {"name":"local quality suite","required":true,"status":"FAILED","evidence":"Final organization-regression.log: 262 passed, 1 failed, 5 skipped, coverage 96.29%, 37.22s. Sole failure: test_agent_repository_contract_is_self_consistent / agents validator refuses OPEN live-interaction risk below. Earlier 263-pass run predates explicit risk registration, not final evidence. No gate weakened. Final Ruff format/check: 227 files clean; mypy 58 modules; Bandit 8044 lines zero issues; wheel/sdist build passed and graph_layout.py/ui.py/operator_guide.md contents match source."},
-    {"name":"review","required":true,"status":"PASSED","evidence":"Reviewed position-only deep copies, no definition reordering, server-side permission checks, stale undo rejection, session persistence, canvas identity/remounts, package inclusion, pt-BR copy and screenshot geometry. No changes to providers, engine, schema, grants or approval policy in this task."},
-    {"name":"dependency audit","required":true,"status":"BLOCKED","evidence":"organization-audit.log: CERTIFICATE_VERIFY_FAILED fetching PyPI altair metadata, missing local issuer. Repeated without TLS bypass."},
-    {"name":"exact-tree GitHub CI","required":true,"status":"NOT_RUN","evidence":"No remote publication requested; existing HEAD CI cannot validate dirty tree"},
-    {"name":"opt-in integrations","required":false,"status":"NOT_RUN","evidence":"Five skips: Docker local AWS, PostgreSQL queue and two PostgreSQL cases, installation smoke; no provider/engine/schema change in this increment"}
+  "tasks": [
+    {
+      "id": "organize",
+      "wave": 1,
+      "status": "DONE",
+      "requirementIds": [
+        "REQ-001",
+        "REQ-002",
+        "REQ-003"
+      ],
+      "files": [
+        "flowops/streamlit/graph_layout.py",
+        "flowops/streamlit/ui.py",
+        "flowops/streamlit/canvas.py",
+        "flowops/streamlit/operator_guide.md",
+        "tests/test_graph_layout.py",
+        "tests/test_canvas_sync.py",
+        "scripts/browser_workspace.py",
+        "docs/WORKSPACE_USABILITY.md"
+      ]
+    }
   ],
-  "failures":[
-    {"status":"RESOLVED","summary":"Layout toolbar rerun could reset node selection; pending-node preservation added and AppTest regression passed."},
-    {"status":"RESOLVED","summary":"Wrapper default minimum zoom 0.5 clipped a seven-step organized graph and blocked narrow-viewport clicks. Set 0.1; exact geometry and responsive dialog checks passed."},
-    {"status":"RESOLVED","summary":"No-op organize feedback disappeared on asynchronous canvas rerun. Persist notice against current working draft; AppTest verifies retention across reruns and clearing after undo, final plain Chromium journey passed."},
-    {"status":"RESOLVED","summary":"The intermittent live-fragment navigation/result-selection issue was reproduced as stale execution content arriving after sidebar navigation. live_execution.py now ignores late fragment renders outside Execute/Executions; test_live_selection_regression.py covers the late callback and the full Chromium workspace journey passed after the guard."},
-    {"status":"BLOCKED","summary":"Dependency audit cannot validate PyPI TLS certificate; exact-tree remote CI also remains unexecuted."}
+  "checks": [
+    {
+      "name": "focused tests and browser layout/undo journey",
+      "required": true,
+      "status": "PASSED",
+      "evidence": "19 focused tests passed; existing legacy Chromium journey PASS; final uninstrumented full workspace journey PASS (fixture 01d856e2e779438fb8f9bd32f0331991), including no-op feedback, organization, exact undo, manual drag expiry, query/map/manual approval/Lambda/JSON/CSV/failure diagnostic and 33 responsive checks. organization-workspace.log and workspace/result.json PASS."
+    },
+    {
+      "name": "local quality suite",
+      "required": true,
+      "status": "PASS",
+      "evidence": "Post-promotion reconciliation 2026-10-06: main SHA 98073e48d25e0ed014facd363ff9e17f2517d5a7 (tree 92d086a2c333d2653529b97bb92a6cf89b04d1ba) passed GitHub Actions Quality push main run #211 (37416724277). The run passed agent-engineering validation, Ubuntu/Windows setup, Local AWS lab with Docker Lambda, PostgreSQL-backed tests, full pytest+coverage, Ruff, mypy, Bandit, pip-audit, package build and all browser gates. Historical evidence: Final organization-regression.log: 262 passed, 1 failed, 5 skipped, coverage 96.29%, 37.22s. Sole failure: test_agent_repository_contract_is_self_consistent / agents validator refuses OPEN live-interaction risk below. Earlier 263-pass run predates explicit risk registration, not final evidence. No gate weakened. Final Ruff format/check: 227 files clean; mypy 58 modules; Bandit 8044 lines zero issues; wheel/sdist build passed and graph_layout.py/ui.py/operator_guide.md contents match source."
+    },
+    {
+      "name": "review",
+      "required": true,
+      "status": "PASSED",
+      "evidence": "Reviewed position-only deep copies, no definition reordering, server-side permission checks, stale undo rejection, session persistence, canvas identity/remounts, package inclusion, pt-BR copy and screenshot geometry. No changes to providers, engine, schema, grants or approval policy in this task."
+    },
+    {
+      "name": "dependency audit",
+      "required": true,
+      "status": "PASS",
+      "evidence": "Historical local TLS/network blocker superseded by exact promoted-tree CI: pip-audit passed on main SHA 98073e48d25e0ed014facd363ff9e17f2517d5a7 in Quality run #211. Historical evidence: organization-audit.log: CERTIFICATE_VERIFY_FAILED fetching PyPI altair metadata, missing local issuer. Repeated without TLS bypass."
+    },
+    {
+      "name": "exact-tree GitHub CI",
+      "required": true,
+      "status": "PASS",
+      "evidence": "Post-promotion reconciliation 2026-10-06: main SHA 98073e48d25e0ed014facd363ff9e17f2517d5a7 (tree 92d086a2c333d2653529b97bb92a6cf89b04d1ba) passed GitHub Actions Quality push main run #211 (37416724277). The run passed agent-engineering validation, Ubuntu/Windows setup, Local AWS lab with Docker Lambda, PostgreSQL-backed tests, full pytest+coverage, Ruff, mypy, Bandit, pip-audit, package build and all browser gates. Historical evidence: No remote publication requested; existing HEAD CI cannot validate dirty tree"
+    },
+    {
+      "name": "opt-in integrations",
+      "required": false,
+      "status": "PASS",
+      "evidence": "Current promoted-tree CI supersedes the historical opt-in skips: Quality run #211 on 98073e48d25e0ed014facd363ff9e17f2517d5a7 ran Ubuntu/Windows setup, PostgreSQL service-backed tests, FLOWOPS_TEST_LOCAL_AWS=1 and the Local AWS lab with Docker Lambda successfully. Historical evidence: Five skips: Docker local AWS, PostgreSQL queue and two PostgreSQL cases, installation smoke; no provider/engine/schema change in this increment"
+    }
   ],
-  "checkpoint":{
-    "branch":"codex/code-defined-tours","base":"8450725","lastReconciled":"2026-09-13",
-    "nextAction":"Organization and undo remain delivered locally. The former live-fragment failure is resolved with a deterministic regression and current Chromium evidence; restore trusted audit connectivity and run exact-tree CI with authorization before promotion. Keep existing unsaved preview session and unrelated dirty changes intact.",
-    "completionGate":"Executed --final: FAIL for local quality (tracked OPEN live-interaction failure), blocked dependency audit and exact-tree CI not run. Final Ruff format/check and git diff --check passed. This is a local feature delivery, not promotion readiness.",
-    "decisions":["Only positions change; no schema, action, edge, branch or execution order changes","No new dependencies; not ELK or Dagre; stable longest-path layers and parent-center ordering","One-step position undo rejects changed graph geometry/topology or saved revision, preserves current config","No auto-layout during render and no writes without explicit save"],
-    "impacts":{"AWS":"none","persistence":"existing explicit draft save only; no migration or historical rewrite","security":"existing runbook.edit gate, no new permissions","deployment":"local only","rollback":"revert only this task's helper, UI, test and documentation hunks, preserve other dirty changes and databases"},
-    "risks":["Fixed spacing is not general edge routing or optimal crossing minimization","Full inline editing, visual mapping and multi-step undo/redo remain future work","Dependency audit blocked by TLS; exact-tree CI needs authorized publication"]
+  "failures": [
+    {
+      "status": "RESOLVED",
+      "summary": "Layout toolbar rerun could reset node selection; pending-node preservation added and AppTest regression passed."
+    },
+    {
+      "status": "RESOLVED",
+      "summary": "Wrapper default minimum zoom 0.5 clipped a seven-step organized graph and blocked narrow-viewport clicks. Set 0.1; exact geometry and responsive dialog checks passed."
+    },
+    {
+      "status": "RESOLVED",
+      "summary": "No-op organize feedback disappeared on asynchronous canvas rerun. Persist notice against current working draft; AppTest verifies retention across reruns and clearing after undo, final plain Chromium journey passed."
+    },
+    {
+      "status": "RESOLVED",
+      "summary": "The intermittent live-fragment navigation/result-selection issue was reproduced as stale execution content arriving after sidebar navigation. live_execution.py now ignores late fragment renders outside Execute/Executions; test_live_selection_regression.py covers the late callback and the full Chromium workspace journey passed after the guard."
+    },
+    {
+      "status": "RESOLVED",
+      "summary": "Dependency audit cannot validate PyPI TLS certificate; exact-tree remote CI also remains unexecuted. Resolved by promoted-tree Quality run #211 on 98073e48d25e0ed014facd363ff9e17f2517d5a7; dependency audit and exact-tree CI are now green."
+    }
+  ],
+  "checkpoint": {
+    "branch": "main",
+    "base": "8450725",
+    "lastReconciled": "2026-10-06",
+    "nextAction": "Promoted in main with exact-tree Quality run #211 green. No technical promotion blocker remains; only the separately tracked real-participant usability study may remain open where applicable.",
+    "completionGate": "Post-promotion reconciliation on 2026-10-06: completion_gate.py --final returns PASS for this run. Promoted main SHA 98073e48d25e0ed014facd363ff9e17f2517d5a7 passed GitHub Actions Quality run #211.",
+    "decisions": [
+      "Only positions change; no schema, action, edge, branch or execution order changes",
+      "No new dependencies; not ELK or Dagre; stable longest-path layers and parent-center ordering",
+      "One-step position undo rejects changed graph geometry/topology or saved revision, preserves current config",
+      "No auto-layout during render and no writes without explicit save"
+    ],
+    "impacts": {
+      "AWS": "none",
+      "persistence": "existing explicit draft save only; no migration or historical rewrite",
+      "security": "existing runbook.edit gate, no new permissions",
+      "deployment": "local only",
+      "rollback": "revert only this task's helper, UI, test and documentation hunks, preserve other dirty changes and databases"
+    },
+    "risks": [
+      "Fixed spacing is not general edge routing or optimal crossing minimization",
+      "Full inline editing, visual mapping and multi-step undo/redo remain future work"
+    ],
+    "reconciledAt": "2026-10-06",
+    "promotionEvidence": {
+      "sha": "98073e48d25e0ed014facd363ff9e17f2517d5a7",
+      "tree": "92d086a2c333d2653529b97bb92a6cf89b04d1ba",
+      "qualityRun": 211,
+      "qualityRunId": 37416724277,
+      "result": "SUCCESS"
+    },
+    "reconciliationNote": "Historical BLOCKED/NOT_RUN evidence is retained where useful, but is superseded as current state by the promoted-tree validation recorded in promotionEvidence."
   }
 }

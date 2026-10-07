@@ -101,30 +101,32 @@ def selected_value_matches(displayed: str, value: str) -> bool:
 def choose(page: Page, label: str, value: str) -> None:
     """Select a Streamlit/BaseWeb option across reruns without retaining stale containers."""
     last_error: Exception | None = None
-    for _ in range(5):
+    for _ in range(6):
         settled(page)
         try:
             control = combobox(page, label)
             expect(control).to_be_visible(timeout=5000)
             if selected_value_matches(control.input_value(timeout=5000), value):
                 return
-            open_button = control.locator("xpath=following-sibling::button[@aria-label='Open']")
-            if open_button.count():
-                open_button.click()
-            else:
-                control.click()
-            expect(control).to_have_attribute("aria-expanded", "true", timeout=3000)
+
+            # Prefer keyboard selection. BaseWeb/Streamlit can recreate the
+            # combobox during a rerun before aria-expanded settles, so never
+            # make that transient attribute a correctness requirement.
+            keyboard_focus(page, control)
+            page.keyboard.press("Enter")
+            page.keyboard.press("Control+A")
+            page.keyboard.insert_text(value)
+            page.wait_for_timeout(100)
+
+            control = combobox(page, label)
             option = page.get_by_role("option", name=value, exact=True)
-            if option.count():
-                expect(option).to_be_visible(timeout=3000)
-                option.click()
+            if option.count() and option.first.is_visible():
+                option.first.click()
             else:
                 keyboard_focus(page, control)
-                page.keyboard.press("Control+A")
-                page.keyboard.insert_text(value)
-                expect(control).to_have_value(value, timeout=3000)
                 page.keyboard.press("Enter")
-            page.wait_for_timeout(250)
+
+            page.wait_for_timeout(350)
             settled(page)
             current = combobox(page, label)
             if selected_value_matches(current.input_value(timeout=5000), value):
@@ -132,7 +134,7 @@ def choose(page: Page, label: str, value: str) -> None:
         except (PlaywrightError, AssertionError) as exc:
             last_error = exc
             page.keyboard.press("Escape")
-            page.wait_for_timeout(200)
+            page.wait_for_timeout(250)
     actual = combobox(page, label).input_value(timeout=5000)
     raise AssertionError(f"Could not select {label}={value!r}; actual={actual!r}") from last_error
 
