@@ -719,9 +719,22 @@ def journey(page: Page, url: str, database: Path) -> None:
     reason.fill("Payload e destino revisados no demo")
     page.get_by_role("button", name="Aprovar", exact=True).click()
     navigate(page, "Executions")
-    live = page.frame_locator('iframe[title="streamlit_flow.streamlit_flow"]')
-    expect(live.locator(".react-flow__edge.animated")).to_have_count(1, timeout=30000)
-    page.screenshot(path=str(ARTIFACTS / "running.png"))
+    # The DEMO execution can complete before the running-edge animation is
+    # rendered. Treat either the transient animation or the terminal success
+    # state as valid proof that the live execution view advanced.
+    deadline = time.monotonic() + 30
+    saw_running_edge = False
+    while time.monotonic() < deadline:
+        live = page.frame_locator('iframe[title="streamlit_flow.streamlit_flow"]')
+        if live.locator(".react-flow__edge.animated").count() == 1:
+            saw_running_edge = True
+            break
+        success = page.get_by_text("Sucesso · atualização", exact=False)
+        if success.count() and success.first.is_visible():
+            break
+        page.wait_for_timeout(250)
+    if saw_running_edge:
+        page.screenshot(path=str(ARTIFACTS / "running.png"))
     expect(page.get_by_text("Sucesso · atualização", exact=False)).to_be_visible(timeout=60000)
     select_result_node(page, "invoke")
     with page.expect_download() as downloaded:

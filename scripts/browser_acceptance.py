@@ -138,7 +138,7 @@ def screenshot_element(page: Page, selector: str, path: Path) -> None:
             if box is not None:
                 page.screenshot(path=str(path), clip=box)
                 return
-        except PlaywrightError:
+        except (PlaywrightError, AssertionError):
             page.wait_for_timeout(200)
     # Streamlit may replace the iframe between layout and capture. The screenshot
     # is diagnostic evidence, not the acceptance condition, so retain evidence
