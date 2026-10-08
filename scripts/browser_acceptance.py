@@ -41,9 +41,20 @@ def settled(page: Page) -> None:
 
 
 def click(page: Page, label: str) -> None:
-    settled(page)
-    page.get_by_role("button", name=label, exact=True).click()
-    settled(page)
+    """Click a Streamlit button while tolerating DOM replacement across reruns."""
+    last_error: Exception | None = None
+    for _ in range(4):
+        settled(page)
+        try:
+            target = page.get_by_role("button", name=label, exact=True)
+            expect(target).to_be_visible(timeout=5000)
+            target.click(timeout=5000)
+            settled(page)
+            return
+        except (PlaywrightError, AssertionError) as exc:
+            last_error = exc
+            page.wait_for_timeout(250)
+    raise AssertionError(f"Button did not become stable/clickable: {label}") from last_error
 
 
 def keyboard_focus(page: Page, locator: Locator) -> None:
