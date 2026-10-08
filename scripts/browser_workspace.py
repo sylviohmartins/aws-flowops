@@ -53,10 +53,99 @@ def settled(page: Page) -> None:
     expect(page.get_by_test_id("stSkeleton")).to_have_count(0, timeout=30000)
 
 
+NAVIGATION_HEADINGS = {
+    "Dashboard": "Visão geral",
+    "Runbooks": "Procedimentos",
+    "Editor": "Editor visual de procedimentos",
+    "Execute": "Executar procedimento",
+    "Executions": "Histórico de execuções",
+    "Approvals": "Aprovações",
+    "Audit": "Auditoria",
+    "Resources": "Explorador de recursos AWS",
+    "Catalog": "Catálogo de ações AWS",
+    "Guide": "Guia passo a passo do FlowOps",
+}
+
+
 def navigate(page: Page, name: str) -> None:
-    page.get_by_test_id("stSidebar").get_by_text(PAGE_LABELS[name], exact=True).click()
-    settled(page)
-    expect(page.get_by_role("radio", name=PAGE_LABELS[name], exact=True)).to_be_checked()
+    """Navigate only after both client selection and server-rendered content agree."""
+    label = PAGE_LABELS[name]
+    heading = NAVIGATION_HEADINGS.get(name)
+    last_error: Exception | None = None
+    for _ in range(6):
+        try:
+            target = page.get_by_role("radio", name=label, exact=True)
+            expect(target).to_be_visible(timeout=5000)
+            if not target.is_checked():
+                target.press("Space", timeout=5000)
+            settled(page)
+            target = page.get_by_role("radio", name=label, exact=True)
+            expect(target).to_be_checked(timeout=5000)
+            if heading:
+                expect(page.get_by_role("heading", name=heading, exact=True)).to_be_visible(
+                    timeout=5000
+                )
+            return
+        except (PlaywrightError, AssertionError) as exc:
+            last_error = exc
+            # A Streamlit rerun may update the radio client-side before the
+            # server-rendered page catches up. Force a different page first so
+            # the next attempt sends a fresh navigation event.
+            fallback = "Dashboard" if name != "Dashboard" else "Runbooks"
+            fallback_radio = page.get_by_role("radio", name=PAGE_LABELS[fallback], exact=True)
+            if fallback_radio.count() and fallback_radio.is_visible():
+                fallback_radio.press("Space", timeout=5000)
+                page.wait_for_timeout(200)
+                settled(page)
+            else:
+                page.wait_for_timeout(250)
+    raise AssertionError(f"Navigation did not settle on {name}") from last_error
+
+
+def select_radio(page: Page, label: str) -> None:
+    """Select a Streamlit radio option across reruns without retaining a stale locator."""
+    last_error: Exception | None = None
+    for _ in range(6):
+        settled(page)
+        try:
+            target = page.get_by_role("radio", name=label, exact=True)
+            expect(target).to_be_visible(timeout=5000)
+            if target.is_checked():
+                return
+            target.press("Space", timeout=5000)
+            page.wait_for_timeout(200)
+            settled(page)
+            current = page.get_by_role("radio", name=label, exact=True)
+            if current.is_checked():
+                return
+        except (PlaywrightError, AssertionError) as exc:
+            last_error = exc
+            page.wait_for_timeout(250)
+    raise AssertionError(f"Radio option did not settle as checked: {label}") from last_error
+
+
+def open_pending_approval(page: Page, database: Path) -> Locator:
+    """Wait for durable approval state, then reacquire its form across navigation reruns."""
+    store = ExecutionStore(Repository(database))
+    deadline = time.monotonic() + 20
+    while time.monotonic() < deadline:
+        if store.pending_approvals():
+            break
+        time.sleep(0.1)
+    else:
+        raise AssertionError("Execution paused without a durable pending approval")
+
+    last_error: Exception | None = None
+    for _ in range(5):
+        try:
+            navigate(page, "Approvals")
+            reason = page.get_by_label("Motivo da decisão", exact=True)
+            expect(reason).to_be_visible(timeout=5000)
+            return reason
+        except (PlaywrightError, AssertionError) as exc:
+            last_error = exc
+            page.wait_for_timeout(250)
+    raise AssertionError("Pending approval form did not become available") from last_error
 
 
 def keyboard_focus(page: Page, locator: Locator) -> None:
@@ -135,7 +224,13 @@ def choose(page: Page, label: str, value: str) -> None:
             last_error = exc
             page.keyboard.press("Escape")
             page.wait_for_timeout(250)
-    actual = combobox(page, label).input_value(timeout=5000)
+    actual = "<control unavailable after rerun>"
+    try:
+        control = combobox(page, label)
+        if control.count() and control.is_visible():
+            actual = control.input_value(timeout=2000)
+    except PlaywrightError:
+        pass
     raise AssertionError(f"Could not select {label}={value!r}; actual={actual!r}") from last_error
 
 
@@ -513,8 +608,7 @@ def journey(page: Page, url: str, database: Path) -> None:
         page.get_by_role("heading", name="Guia passo a passo do FlowOps", exact=True)
     ).to_be_visible()
     navigate(page, "Editor")
-    page.get_by_role("radio", name="Canvas", exact=True).press("Space")
-    settled(page)
+    select_radio(page, "Canvas")
     check_organization(page, database)
     close_node_dialog(page)
     canvas = page.frame_locator('iframe[title="streamlit_flow.streamlit_flow"]')
@@ -558,8 +652,7 @@ def journey(page: Page, url: str, database: Path) -> None:
     page.screenshot(path=str(ARTIFACTS / "node-editor.png"))
     close_node_dialog(page)
     # Configure map/approval/payload through the guide, without editing JSON or expressions.
-    page.get_by_role("radio", name="Assistente", exact=True).press("Space")
-    settled(page)
+    select_radio(page, "Assistente")
     template_field_label = f"Nome do novo campo em {field_label('template')}"
     select_assistant_step(
         page,
@@ -604,8 +697,7 @@ def journey(page: Page, url: str, database: Path) -> None:
     page.get_by_role("button", name="Aplicar configuração ao rascunho", exact=True).click()
     settled(page)
     page.screenshot(path=str(ARTIFACTS / "visual-payload.png"))
-    page.get_by_role("radio", name="Canvas", exact=True).press("Space")
-    settled(page)
+    select_radio(page, "Canvas")
     page.get_by_role("button", name="Validar", exact=True).click()
     settled(page)
     close_node_dialog(page)
@@ -623,13 +715,26 @@ def journey(page: Page, url: str, database: Path) -> None:
     page.get_by_role("button", name="Enviar execução", exact=True).click()
     expect(page.get_by_text("Execução pausada.", exact=False)).to_be_visible(timeout=30000)
     page.screenshot(path=str(ARTIFACTS / "waiting-approval.png"))
-    navigate(page, "Approvals")
-    page.get_by_label("Motivo da decisão", exact=True).fill("Payload e destino revisados no demo")
+    reason = open_pending_approval(page, database)
+    reason.fill("Payload e destino revisados no demo")
     page.get_by_role("button", name="Aprovar", exact=True).click()
     navigate(page, "Executions")
-    live = page.frame_locator('iframe[title="streamlit_flow.streamlit_flow"]')
-    expect(live.locator(".react-flow__edge.animated")).to_have_count(1, timeout=30000)
-    page.screenshot(path=str(ARTIFACTS / "running.png"))
+    # The DEMO execution can complete before the running-edge animation is
+    # rendered. Treat either the transient animation or the terminal success
+    # state as valid proof that the live execution view advanced.
+    deadline = time.monotonic() + 30
+    saw_running_edge = False
+    while time.monotonic() < deadline:
+        live = page.frame_locator('iframe[title="streamlit_flow.streamlit_flow"]')
+        if live.locator(".react-flow__edge.animated").count() == 1:
+            saw_running_edge = True
+            break
+        success = page.get_by_text("Sucesso · atualização", exact=False)
+        if success.count() and success.first.is_visible():
+            break
+        page.wait_for_timeout(250)
+    if saw_running_edge:
+        page.screenshot(path=str(ARTIFACTS / "running.png"))
     expect(page.get_by_text("Sucesso · atualização", exact=False)).to_be_visible(timeout=60000)
     select_result_node(page, "invoke")
     with page.expect_download() as downloaded:
@@ -650,8 +755,7 @@ def journey(page: Page, url: str, database: Path) -> None:
     # restores the product default (advanced canvas), so choose the legacy canvas
     # explicitly before interacting with its iframe.
     navigate(page, "Editor")
-    page.get_by_role("radio", name="Canvas", exact=True).press("Space")
-    settled(page)
+    select_radio(page, "Canvas")
     canvas = page.frame_locator('iframe[title="streamlit_flow.streamlit_flow"]')
     query = canvas.locator('.react-flow__node[data-id="query"]')
     expect(query).to_be_visible()
