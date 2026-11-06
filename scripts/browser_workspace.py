@@ -18,7 +18,7 @@ from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Locator, Page, expect, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
-from flowops.domain.models import Edge, Node
+from flowops.domain.models import Edge, Node, Status
 from flowops.persistence.executions import ExecutionStore
 from flowops.persistence.repository import Repository
 from flowops.streamlit.graph_layout import organize_workflow
@@ -146,6 +146,53 @@ def open_pending_approval(page: Page, database: Path) -> Locator:
             last_error = exc
             page.wait_for_timeout(250)
     raise AssertionError("Pending approval form did not become available") from last_error
+
+
+def approve_demo_execution(page: Page, database: Path) -> str:
+    """Confirm a UI approval was durably recorded before leaving the form.
+
+    Streamlit may rerender a button between click and processing the event.
+    Retry only while the exact approval remains PENDING in the database.
+    """
+    store = ExecutionStore(Repository(database))
+    pending = store.pending_approvals()
+    assert len(pending) == 1, f"Expected one demo approval, found {len(pending)}"
+    execution_id = str(pending[0]["execution_id"])
+    node_id = str(pending[0]["node_id"])
+    reason_text = "Payload e destino revisados no demo"
+
+    for _ in range(5):
+        remaining = [
+            approval
+            for approval in store.pending_approvals()
+            if approval["execution_id"] == execution_id and approval["node_id"] == node_id
+        ]
+        if not remaining:
+            status = store.get(execution_id).status
+            assert status in {Status.PENDING, Status.RUNNING, Status.SUCCESS}, status
+            return execution_id
+        try:
+            reason = open_pending_approval(page, database)
+            reason.fill(reason_text)
+            expect(reason).to_have_value(reason_text, timeout=5000)
+            page.get_by_role("button", name="Aprovar", exact=True).click()
+        except PlaywrightError:
+            # An in-flight rerun may detach the button; check persistence first.
+            pass
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            if not any(
+                approval["execution_id"] == execution_id and approval["node_id"] == node_id
+                for approval in store.pending_approvals()
+            ):
+                status = store.get(execution_id).status
+                assert status in {Status.PENDING, Status.RUNNING, Status.SUCCESS}, status
+                return execution_id
+            page.wait_for_timeout(200)
+    raise AssertionError(
+        f"Approval click never persisted: execution={execution_id} node={node_id} "
+        f"status={store.get(execution_id).status}"
+    )
 
 
 def keyboard_focus(page: Page, locator: Locator) -> None:
@@ -385,6 +432,32 @@ def ensure_node_dialog_field(
     raise AssertionError(
         f"Node section {section!r} did not expose field {field_label_text!r}"
     ) from last_error
+
+
+def fill_node_dialog_field(
+    page: Page,
+    section: str,
+    label: str,
+    value: str,
+    *,
+    node_id: str,
+) -> Locator:
+    """Fill a conditional field and prove the value survives a Streamlit rerun."""
+    last_error: Exception | None = None
+    for _ in range(5):
+        try:
+            dialog = ensure_node_dialog_field(page, section, label, node_id=node_id)
+            field = dialog.get_by_label(label, exact=True)
+            field.fill(value, timeout=5000)
+            field.press("Tab", timeout=5000)
+            settled(page)
+            dialog = ensure_node_dialog_field(page, section, label, node_id=node_id)
+            if dialog.get_by_label(label, exact=True).input_value(timeout=5000) == value:
+                return dialog
+        except (PlaywrightError, AssertionError) as exc:
+            last_error = exc
+            page.wait_for_timeout(200)
+    raise AssertionError(f"Field {label!r} did not retain {value!r} after reruns") from last_error
 
 
 def choose_structural_kind(
@@ -629,7 +702,13 @@ def journey(page: Page, url: str, database: Path) -> None:
         section="Buscar recursos e montar consulta DynamoDB",
         node_id="query",
     )
-    dialog.get_by_label("Chave paymentId (S)", exact=True).fill("12345")
+    dialog = fill_node_dialog_field(
+        page,
+        "Buscar recursos e montar consulta DynamoDB",
+        "Chave paymentId (S)",
+        "12345",
+        node_id="query",
+    )
     dialog.get_by_role("button", name="Aplicar requisição DynamoDB gerada", exact=True).click()
     settled(page)
     dialog = ensure_node_dialog_section(
@@ -715,10 +794,25 @@ def journey(page: Page, url: str, database: Path) -> None:
     page.get_by_role("button", name="Enviar execução", exact=True).click()
     expect(page.get_by_text("Execução pausada.", exact=False)).to_be_visible(timeout=30000)
     page.screenshot(path=str(ARTIFACTS / "waiting-approval.png"))
-    reason = open_pending_approval(page, database)
-    reason.fill("Payload e destino revisados no demo")
-    page.get_by_role("button", name="Aprovar", exact=True).click()
+    execution_id = approve_demo_execution(page, database)
+    store = ExecutionStore(Repository(database))
+    deadline = time.monotonic() + 60
+    while time.monotonic() < deadline:
+        execution = store.get(execution_id)
+        if execution.status == Status.SUCCESS:
+            break
+        if execution.status in {Status.FAILED, Status.CANCELLED}:
+            raise AssertionError(
+                f"Approved demo execution ended in {execution.status}: {execution.error}"
+            )
+        page.wait_for_timeout(250)
+    else:
+        raise AssertionError(
+            f"Approved demo execution did not finish: "
+            f"id={execution_id}, status={store.get(execution_id).status}"
+        )
     navigate(page, "Executions")
+    expect(combobox(page, "Detalhes da execução")).to_have_value(execution_id, timeout=5000)
     # The DEMO execution can complete before the running-edge animation is
     # rendered. Treat either the transient animation or the terminal success
     # state as valid proof that the live execution view advanced.

@@ -86,6 +86,29 @@ def check_layout_fixture(page: Page) -> None:
     assert "unequal tracks" in page.evaluate(MEASURE_LAYOUT)["failures"]
 
 
+def sidebar_collapsed(page: Page) -> bool:
+    """Check actual off-screen geometry across Streamlit sidebar DOM variants."""
+    return bool(
+        page.get_by_test_id("stSidebar").evaluate(
+            "element => element.getBoundingClientRect().right <= 1"
+        )
+    )
+
+
+def wait_sidebar_state(page: Page, *, collapsed: bool) -> None:
+    """Wait for the visible sidebar state, not version-specific ARIA attributes."""
+    page.wait_for_function(
+        """collapsed => {
+            const sidebar = document.querySelector('[data-testid="stSidebar"]');
+            if (!sidebar) return false;
+            const bounds = sidebar.getBoundingClientRect();
+            return collapsed ? bounds.right <= 1 : bounds.left >= -1 && bounds.right > 100;
+        }""",
+        arg=collapsed,
+        timeout=20000,
+    )
+
+
 def check_layout_pages(page: Page, artifacts: Path) -> None:
     from scripts.browser_workspace import navigate, settled
 
@@ -95,21 +118,18 @@ def check_layout_pages(page: Page, artifacts: Path) -> None:
     try:
         for width in (1440, 1024, 390):
             page.set_viewport_size({"width": width, "height": 1000})
-            sidebar = page.get_by_test_id("stSidebar")
             if width < 640:
-                # Streamlit collapses asynchronously when crossing its mobile breakpoint.
-                expect(sidebar).to_have_attribute("aria-expanded", "false")
+                # Streamlit collapses asynchronously at its mobile breakpoint.
+                # Newer builds use data-collapsed instead of aria-expanded.
+                wait_sidebar_state(page, collapsed=True)
             for key in PAGE_LABELS:
-                if sidebar.get_attribute("aria-expanded") == "false":
+                if sidebar_collapsed(page):
                     page.get_by_test_id("stExpandSidebarButton").click()
-                    expect(sidebar).to_have_attribute("aria-expanded", "true")
+                    wait_sidebar_state(page, collapsed=False)
                 navigate(page, key)
                 if width < 640:
                     page.get_by_test_id("stSidebarCollapseButton").get_by_role("button").click()
-                    expect(sidebar).to_have_attribute("aria-expanded", "false")
-                    page.wait_for_function(
-                        "() => document.querySelector('[data-testid=stSidebar]').getBoundingClientRect().right <= 1"
-                    )
+                    wait_sidebar_state(page, collapsed=True)
                 settled(page)
                 report = page.evaluate(MEASURE_LAYOUT) | {"page": key}
                 reports.append(report)
