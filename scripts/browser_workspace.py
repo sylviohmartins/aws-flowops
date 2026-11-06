@@ -434,6 +434,32 @@ def ensure_node_dialog_field(
     ) from last_error
 
 
+def fill_node_dialog_field(
+    page: Page,
+    section: str,
+    label: str,
+    value: str,
+    *,
+    node_id: str,
+) -> Locator:
+    """Fill a conditional field and prove the value survives a Streamlit rerun."""
+    last_error: Exception | None = None
+    for _ in range(5):
+        try:
+            dialog = ensure_node_dialog_field(page, section, label, node_id=node_id)
+            field = dialog.get_by_label(label, exact=True)
+            field.fill(value, timeout=5000)
+            field.press("Tab", timeout=5000)
+            settled(page)
+            dialog = ensure_node_dialog_field(page, section, label, node_id=node_id)
+            if dialog.get_by_label(label, exact=True).input_value(timeout=5000) == value:
+                return dialog
+        except (PlaywrightError, AssertionError) as exc:
+            last_error = exc
+            page.wait_for_timeout(200)
+    raise AssertionError(f"Field {label!r} did not retain {value!r} after reruns") from last_error
+
+
 def choose_structural_kind(
     page: Page,
     type_label: str,
@@ -676,7 +702,13 @@ def journey(page: Page, url: str, database: Path) -> None:
         section="Buscar recursos e montar consulta DynamoDB",
         node_id="query",
     )
-    dialog.get_by_label("Chave paymentId (S)", exact=True).fill("12345")
+    dialog = fill_node_dialog_field(
+        page,
+        "Buscar recursos e montar consulta DynamoDB",
+        "Chave paymentId (S)",
+        "12345",
+        node_id="query",
+    )
     dialog.get_by_role("button", name="Aplicar requisição DynamoDB gerada", exact=True).click()
     settled(page)
     dialog = ensure_node_dialog_section(
